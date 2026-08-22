@@ -15,6 +15,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Foundation](../courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-foundation.md){ .md-button .md-button--primary }
 
+### 2. Essential Google Cloud Infrastructure: Core Services
+
+接續 Foundation，整理 IAM、儲存與資料庫、資源管理、billing、quota，以及 Monitoring 與 Logging 的 ACE 核心操作觀念。
+
+[開始閱讀 Core Services](../courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

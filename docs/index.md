@@ -31,6 +31,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Essential Google Cloud Infrastructure: Core Services](courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -50,6 +59,22 @@ hide:
 - **包含：** Cloud Shell、Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-foundation.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · INFRASTRUCTURE</span>
+
+### Essential Google Cloud Infrastructure: Core Services
+
+涵蓋 IAM、Cloud Storage、資料庫選型、quota、billing，以及 Cloud Monitoring 與 Cloud Logging。
+
+- **5 個 Chapter**
+- **技術核對：2026-08-18**
+- **包含：** 服務比較、Cloud Shell、Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md)
 
 </article>
 

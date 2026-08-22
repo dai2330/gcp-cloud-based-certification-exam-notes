@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 COURSE = ROOT / "docs/courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-foundation.md"
 SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Essential_Google_Cloud_Infrastructure_Foundation.source.txt"
+CORE_SERVICES_COURSE = ROOT / "docs/courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md"
+CORE_SERVICES_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Essential_Google_Cloud_Infrastructure_Core_Services.source.txt"
 
 
 def read(relative: str) -> str:
@@ -98,10 +100,61 @@ class CourseContentTests(unittest.TestCase):
             )
             course_position += 1
 
-    def test_navigation_exposes_only_available_course(self) -> None:
+    def test_navigation_exposes_foundation_course(self) -> None:
         config = read("mkdocs.yml")
         self.assertIn("Foundation: courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-foundation.md", config)
-        self.assertNotIn("Core Services:", config)
+
+
+class CoreServicesCourseTests(unittest.TestCase):
+    def test_core_services_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(CORE_SERVICES_COURSE.is_file())
+
+    def test_core_services_has_one_h1_and_five_chapter_h2s(self) -> None:
+        content = CORE_SERVICES_COURSE.read_text(encoding="utf-8")
+        h1s = re.findall(r"^# (?!#).+$", content, flags=re.MULTILINE)
+        self.assertEqual(h1s, ["# Essential Google Cloud Infrastructure: Core Services"])
+        chapter_h2s = re.findall(r"^## Chapter [1-5] — .+$", content, flags=re.MULTILINE)
+        self.assertEqual(len(chapter_h2s), 5)
+
+    def test_core_services_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = CORE_SERVICES_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = CORE_SERVICES_COURSE.read_text(encoding="utf-8").splitlines()
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content = [
+            normalize_layout(line)
+            for line in source_lines
+            if not re.match(r"^#{1,6} ", line)
+        ]
+        normalized_course = [normalize_layout(line) for line in course_lines]
+
+        self.assertEqual(len(source_lines), 577)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_core_services_is_linked_from_all_discovery_surfaces(self) -> None:
+        course_path = (
+            "courses/ace/essential-google-cloud-infrastructure/"
+            "essential-google-cloud-infrastructure-core-services.md"
+        )
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn(f"Core Services: {course_path}", config)
+        self.assertLess(config.index("Foundation:"), config.index("Core Services:"))
+        self.assertIn(course_path, homepage)
+        self.assertIn(f"../{course_path}", learning_path)
 
 
 class PresentationTests(unittest.TestCase):

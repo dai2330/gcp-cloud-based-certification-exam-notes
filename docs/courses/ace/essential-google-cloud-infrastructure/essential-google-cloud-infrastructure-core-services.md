@@ -1,0 +1,577 @@
+# Essential Google Cloud Infrastructure: Core Services
+
+> 課程：<https://www.skills.google/paths/11/course_templates/49><br>
+> 目標：Google Cloud Associate Cloud Engineer（ACE）<br>
+> 技術核對日期：2026-08-18<br>
+> 閱讀方式：先讀每章「認證考點」與文末「ACE 重點」，再回頭補詳細知識點。
+
+## 課程範圍與取捨
+
+公開課程頁顯示本課程約 8 小時 15 分，核心主題是 IAM、儲存與資料庫、資源管理，以及資源監控。這四類能力都能對應 ACE 官方考綱，因此全部納入；課程介紹、Module Review 與 Course Review 僅保留必要脈絡。
+
+本筆記不是影片逐字稿。公開頁面可辨識章節與單元名稱，但影片、實驗步驟及測驗內容需登入後才可完整讀取；以下以公開目錄為骨架，配合現行 Google Cloud 官方文件補成 ACE 學習筆記。未看到的實驗畫面、指令及輸出均未臆造。
+
+---
+
+## Chapter 1 — Course Introduction
+
+中文名稱：課程介紹
+
+### 1. Learning Objectives
+
+- 理解本課程位於 Compute Engine 基礎架構系列中的角色。
+- 建立 ACE 的操作視角：設定、部署、維運、監控與控管存取。
+
+### 2. 核心概念摘要
+
+ACE 不只考「服務是什麼」，也重視能否在 Google Cloud Console 與 `gcloud` 中完成日常管理。讀本課程時，應把每個服務轉成三個問題：資源 scope 在哪裡、誰有權操作、故障或費用異常時去哪裡查。
+
+### 9. 認證考點
+
+- 官方考綱涵蓋建立 cloud solution environment、規劃與部署、確保成功運作，以及設定 access/security。
+- 本課程最直接對應：IAM、storage/database 選型、billing、quota、Monitoring 與 Logging。
+
+### 11. 本章快速複習
+
+1. 遇到情境題先找需求：權限、資料模型、可用性、成本、維運。
+2. 再選資源 scope 與服務。
+3. 最後選最小權限且最少人工維護的作法。
+
+---
+
+## Chapter 2 — Identity and Access Management (IAM)
+
+中文名稱：身分與存取管理
+
+### 1. Learning Objectives
+
+- 以「誰可以對哪個資源做什麼」解讀 IAM。
+- 理解 resource hierarchy、allow policy、roles、principals 與 inheritance。
+- 正確使用 service account、custom role 與 Organization Policy。
+
+### 2. 核心概念摘要
+
+IAM 是 authorization（授權）系統。Allow policy 中的 role binding，把 principal（例如 user、group、service account）和 role 綁在某個資源上。Role 是 permissions 的集合；policy 附著於 organization、folder、project 或服務資源，授權通常會由上層向子孫資源繼承。
+
+記憶句：**principal + role + resource = 誰能在何處做哪些事**。
+
+### 3. 詳細知識點
+
+#### 3.1 Resource hierarchy
+
+`Organization → Folder → Project → Service resource`。Project 是多數資源、API、quota 與 billing 的基本管理邊界；Folder 用來把多個 project 依部門、環境或治理需求分組。
+
+常見陷阱：在 organization 或 folder 層授予過大的 role，會讓權限向下繼承到許多 project。適合共用的政策才放上層；應用專屬權限盡量放在較低層。
+
+#### 3.2 Roles
+
+- Basic roles：Owner、Editor、Viewer，權限面太廣，正式環境通常避免作為預設選擇。
+- Predefined roles：由 Google 維護、針對服務與職責設計；通常是首選。
+- Custom roles：當 predefined role 仍過大或缺少必要 permission 時建立；需要自行維護 permission 變動。
+
+最小權限不是「永遠選 custom role」，而是先選符合需求的最小 predefined role，必要時才自訂。
+
+#### 3.3 Principals 與 groups
+
+人員權限優先授予 Google group，再由群組管理成員，減少逐一修改 IAM policy。Workload 應使用 service account，不要共用人的帳號。
+
+#### 3.4 Service accounts
+
+Service account 是非人類 workload identity，而且同時是：
+
+1. principal：它可以被授予其他資源的 role；
+2. resource：其他 principal 可被授權 impersonate 或管理它。
+
+優先使用 attached service account、service account impersonation 或 Workload Identity Federation 等短效憑證方式；避免長期 JSON key。能 impersonate 高權限 service account 的人，實際上可取得該帳號的資源權限。
+
+#### 3.5 Organization Policy
+
+IAM 回答「誰能做什麼」；Organization Policy 用 constraints 限制「組織中的資源允許如何設定」。它不是拿來授予使用者權限。政策通常依 hierarchy 向下繼承。
+
+#### 3.6 IAM best practices
+
+- 採 least privilege，優先 predefined roles。
+- 對人員使用群組；對 workload 使用專用 service account。
+- 避免 basic roles 與長期 service account keys。
+- 定期檢視 Policy Analyzer、role recommendations、Cloud Audit Logs。
+- 將 production 與 development 分開到不同 project/trust boundary。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Organization | Global hierarchy | hierarchy 最上層，集中治理 |
+| Folder | Global hierarchy | 可巢狀分組並繼承政策 |
+| Project | Global management boundary | API、billing、quota 與多數資源的容器 |
+| Service account | Project-owned resource | 建立後不能移到另一個 project |
+| IAM allow policy | Attached to a resource | binding 的授權作用於該資源及其子孫 |
+
+### 5. Architecture
+
+```mermaid
+flowchart TD
+    O["Organization"] --> F["Folder"]
+    F --> P["Project"]
+    P --> R["Service resource"]
+    I["Inherited IAM / policy"] --> F
+    I --> P
+    I --> R
+```
+
+### 6. Google Cloud Console
+
+- IAM 檢視：`Console > IAM & Admin > IAM`
+- Service accounts：`Console > IAM & Admin > Service Accounts`
+- Organization policies：`Console > IAM & Admin > Organization Policies`
+- Audit logs 查詢：`Console > Logging > Logs Explorer`
+
+Console 標籤可能調整；操作前確認目前頁面所選 organization/project。
+
+### 7. Cloud Shell / gcloud
+
+以下是經現行 `gcloud` reference 可查證的常用操作模式；實際值請替換 placeholders。
+
+```bash
+gcloud projects get-iam-policy PROJECT_ID
+```
+
+- Command group：`gcloud projects`
+- Resource：project
+- Action：`get-iam-policy`
+- Parameter：`PROJECT_ID` 是專案 ID placeholder
+
+```bash
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:SERVICE_ACCOUNT_EMAIL" \
+  --role="ROLE_NAME"
+```
+
+- Action：新增 role binding，不會取代整份 policy。
+- `--member`：principal，格式不可漏掉 `serviceAccount:`。
+- `--role`：例如 `roles/storage.objectViewer`；應選最小權限。
+
+### 9. 認證考點
+
+- 題目問「讓 VM 上的應用存取資源」：用 attached service account 並授予必要 role，不把個人憑證或 JSON key 放進 VM。
+- 題目問「多人相同職責」：role 給 group，不逐人 binding。
+- 題目問「禁止所有 project 建外部 IP／禁止建立 service account key」：Organization Policy，不是 IAM role。
+- 題目問「短暫以 service account 身分操作」：impersonation / short-lived credentials。
+- 分清楚「管理 service account」與「service account 存取其他資源」是兩份不同資源上的 IAM policy。
+
+### 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | IAM、roles、members、service accounts、organization restrictions 與最佳實務 | 課程公開目錄 |
+| 現行官方文件 | Google 文件目前使用 `principal` 一詞；核心模型仍是誰能對哪些資源做什麼 | [IAM overview](https://docs.cloud.google.com/iam/docs/overview) |
+| 現行官方文件 | Service account 同時是 principal 與 resource，應優先避免長期 key | [Service accounts overview](https://docs.cloud.google.com/iam/docs/service-account-overview)、[安全最佳實務](https://docs.cloud.google.com/iam/docs/best-practices-service-accounts) |
+| 備考建議 | 把 members 視為舊教材/介面的術語；作答時辨識 principal 即可 | 推論，非官方考綱聲明 |
+
+### 11. 本章快速複習
+
+- IAM：授權；Organization Policy：限制資源設定。
+- Role 是 permissions 集合；binding 將 principal 綁到 role。
+- 上層 binding 會繼承；deny 不會被下層 allow 抵銷。
+- Service account 不等於 service account key。
+
+---
+
+## Chapter 3 — Storage and Database Services
+
+中文名稱：儲存與資料庫服務
+
+### 1. Learning Objectives
+
+- 依資料型態、查詢模式、規模與一致性需求選擇服務。
+- 管理 Cloud Storage class、lifecycle、保護與存取。
+- 分辨 Cloud SQL、Spanner、AlloyDB、Firestore、Bigtable、Memorystore 與 Filestore。
+
+### 2. 核心概念摘要
+
+選型先問：物件或檔案？關聯式 SQL？文件型 NoSQL？超大規模低延遲 key-value？快取？共享檔案系統？不要因為「資料很大」就直接選 Bigtable，也不要因為「要高可用」就一律選 Spanner。
+
+### 3. 詳細知識點
+
+#### 3.1 Cloud Storage
+
+Object storage，資料放在 bucket 中。Bucket 名稱全域唯一；bucket 的 location 可為 region、dual-region 或 multi-region。Object 本身沒有傳統資料夾階層，路徑通常是 object name 的前綴呈現。
+
+Storage classes：
+
+- Standard：頻繁存取。
+- Nearline：低頻，典型至少 30 天。
+- Coldline：更低頻，典型至少 90 天。
+- Archive：長期封存，典型至少 365 天。
+
+低頻 class 涉及 minimum storage duration 與 retrieval charges。無法預測存取頻率時可評估 Autoclass。Lifecycle rule 可依 age、storage class 等條件轉換或刪除 object。
+
+現行重點：支援的 bucket 預設啟用 soft delete，預設保留 7 天；可調為 7–90 天或設為 0 關閉。Soft-deleted data 仍可能產生費用。Soft delete、Object Versioning、retention policy 與 lifecycle 是不同機制。
+
+#### 3.2 Filestore
+
+Managed NFS file storage，適合需要 POSIX-like 共享檔案存取的 VM 或 GKE workload。它不是 object storage，也不是 block disk。
+
+#### 3.3 Cloud SQL
+
+Managed relational database，支援 MySQL、PostgreSQL、SQL Server。適合傳統關聯式 schema、交易與既有 SQL 應用；需依引擎與設定規劃 HA、backup、maintenance、connections。
+
+#### 3.4 Spanner
+
+Fully managed relational database，提供橫向擴展與強一致性，適合全球或大規模、需要 SQL 與交易一致性的 workload。比 Cloud SQL 更適合超大規模與多區域，但成本與設計複雜度通常較高。
+
+#### 3.5 AlloyDB for PostgreSQL
+
+PostgreSQL-compatible managed database，針對高效能與企業 workload。情境若只要求一般 managed MySQL/PostgreSQL，先考慮 Cloud SQL；明確要求 PostgreSQL compatibility 加上高效能/分析能力時再辨識 AlloyDB。
+
+#### 3.6 Firestore
+
+Serverless document database，以 collections/documents 為核心，適合 web/mobile、彈性 schema 與自動擴展。不適合把複雜 relational joins 原封不動搬入。
+
+#### 3.7 Bigtable
+
+Wide-column NoSQL，適合極大量、低延遲、依 row key 存取的時間序列、IoT、金融或分析 serving。Schema 設計以查詢模式與 row key 為中心；不提供傳統 relational joins。
+
+#### 3.8 Memorystore
+
+Managed in-memory data store，適合 cache、session、低延遲暫存；通常不是唯一的 durable system of record。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Cloud Storage bucket | Chosen location | 名稱全域唯一；資料 placement 依 location |
+| Cloud SQL instance | Regional; HA spans zones | 一般 instance 屬 region，HA 設定影響跨 zone 容錯 |
+| Spanner instance configuration | Regional / multi-region | 決定資料 placement、可用性與延遲 |
+| Firestore database | Location selected at creation | location 選擇影響延遲與可用性 |
+| Bigtable instance/cluster | Clusters are zonal | 多 cluster replication 可跨 zone/region |
+| Filestore instance | Usually zonal or regional by tier | tier 影響可用性與效能 |
+
+### 6. Google Cloud Console
+
+- Cloud Storage：`Console > Cloud Storage > Buckets`
+- Cloud SQL：`Console > SQL`
+- Firestore：`Console > Firestore`
+- Spanner：`Console > Spanner`
+- Bigtable：`Console > Bigtable`
+
+### 7. Cloud Shell / gcloud
+
+```bash
+gcloud storage buckets describe gs://BUCKET_NAME
+```
+
+- Command group：`gcloud storage`
+- Resource：bucket
+- Action：`describe`
+- Parameter：`BUCKET_NAME` 是 bucket name placeholder
+
+```bash
+gcloud sql instances describe INSTANCE_NAME
+```
+
+- Command group：`gcloud sql instances`
+- Resource：Cloud SQL instance
+- Action：`describe`
+- Parameter：`INSTANCE_NAME` 是 instance name placeholder
+
+### 9. 認證考點
+
+| 情境 | 建議服務 | 判斷理由 | 常見誤解 |
+|---|---|---|---|
+| 圖片、備份、靜態檔 | Cloud Storage | object storage、耐久、可用 lifecycle | 不是掛載式 block disk |
+| 多 VM 共用 NFS | Filestore | managed file system | Cloud Storage 不等於 NFS |
+| 一般 MySQL/PostgreSQL/SQL Server | Cloud SQL | managed relational database | 不必為一般規模直接用 Spanner |
+| 全球/超大規模且要強一致交易 | Spanner | scale-out relational + strong consistency | Bigtable 不是 relational DB |
+| Web/mobile 文件資料 | Firestore | serverless document model | 不適合複雜 joins |
+| 超大量低延遲 row-key 查詢 | Bigtable | wide-column、水平擴展 | 不代表所有大數據都選它 |
+| cache/session | Memorystore | in-memory 低延遲 | 通常不是 durable primary DB |
+
+### 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Cloud Storage、Filestore、Cloud SQL、Spanner、AlloyDB、Firestore、Bigtable、Memorystore | 課程公開目錄 |
+| 現行官方文件 | Cloud Storage storage class 是 object metadata；改 bucket default 不會回溯改既有 objects | [Storage classes](https://docs.cloud.google.com/storage/docs/storage-classes) |
+| 現行官方文件 | Soft delete 對支援的 bucket 預設為 7 天，並可能增加儲存費用 | [Soft delete overview](https://docs.cloud.google.com/storage/docs/soft-delete) |
+| 備考建議 | 遇到刪除保護題，分辨 soft delete、versioning、retention 與 lifecycle 的目的 | 推論，非官方考綱聲明 |
+
+### 11. 本章快速複習
+
+- Object：Cloud Storage；File/NFS：Filestore；Block：Persistent Disk/Hyperdisk。
+- 一般 SQL：Cloud SQL；全球 scale-out SQL：Spanner。
+- Document：Firestore；wide-column：Bigtable；cache：Memorystore。
+- Bucket default storage class 改變不會自動改既有 objects。
+
+---
+
+## Chapter 4 — Resource Management
+
+中文名稱：資源管理
+
+### 1. Learning Objectives
+
+- 管理 resource hierarchy、quota、labels、billing account、budgets 與 billing export。
+- 分清 quota、budget alert 與硬性停用機制。
+
+### 2. 核心概念摘要
+
+Resource Manager 提供 organization、folder、project 的治理結構；quota 保護服務與使用者免於非預期用量；labels 用於整理與成本分析；Cloud Billing 管理付款與 project 關聯。Budget alert 是通知與自動化訊號，預設不會自動封鎖花費。
+
+### 3. 詳細知識點
+
+#### 3.1 Quotas
+
+Quota 可能是 allocation quota（可同時配置多少資源）或 rate quota（一定時間內多少 requests）。Quota 通常依 project、region、service 等維度計算；不是保證容量。部署前先查使用量與上限，需要時提早申請調高。
+
+#### 3.2 Labels 與 tags
+
+- Labels：resource 上的 key-value metadata，常用於整理、filter、成本歸屬；通常不具繼承式政策語意。
+- Tags：Resource Manager 的 key/value 與 tag binding，可搭配 IAM Conditions、Organization Policy 或 firewall 等政策能力。
+
+不要把 network tags、resource labels 與 Resource Manager tags 混為一談。
+
+#### 3.3 Billing
+
+Billing account 可連結多個 projects；一個 project 同一時間只連到一個 billing account。Budgets 和 alerts 用於追蹤 actual/forecasted spend；要做自動回應，可將通知送至 Pub/Sub 後建立 automation，但停用 billing 可能中斷所有服務，需謹慎。
+
+Billing export 到 BigQuery 可做明細查詢、成本分攤與 dashboard。Labels 若要進入成本分析，必須在資源建立/計費資料產生時正確設定；後補不一定回溯既有費用。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Billing account | Global account-level | 可連結多 projects |
+| Budget | Billing account scoped | 可 filter 到 projects/services/labels |
+| Service quota | Depends on quota dimension | 常見 project + regional/global 維度 |
+| Label | Individual resource | 不自動繼承，支援程度依服務 |
+| Resource Manager tag | Organization hierarchy | 可被政策條件引用 |
+
+### 6. Google Cloud Console
+
+- Quotas：`Console > IAM & Admin > Quotas & System Limits`
+- Billing accounts：`Console > Billing > Manage billing accounts`
+- Budgets：`Console > Billing > Budgets & alerts`
+- Billing export：`Console > Billing > Billing export`
+
+### 7. Cloud Shell / gcloud
+
+```bash
+gcloud projects describe PROJECT_ID
+```
+
+- Command group：`gcloud projects`
+- Resource：project
+- Action：`describe`
+- Parameter：`PROJECT_ID` 是 project ID placeholder
+
+### 9. 認證考點
+
+- 「收到費用警告」：budget + alert；它不是 hard cap。
+- 「分析逐項成本」：Cloud Billing export 到 BigQuery。
+- 「部署因資源上限失敗」：先查 quota 維度、usage 與 limit，再申請調高；不要先假設是 IAM。
+- 「依環境分攤成本」：規劃 project 與 labels；政策控制則看 tags/Organization Policy。
+- Project ID 全域唯一且建立後不能更改；display name 可改。
+
+### 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Resource Manager、quotas、labels、billing 與 Billing data in BigQuery | 課程公開目錄 |
+| 現行官方文件 | Budget 不會自動限制使用量或支出，可透過通知串接自動化 | [Budgets and alerts](https://docs.cloud.google.com/billing/docs/how-to/budgets) |
+| 現行官方文件 | Quota 不等於容量保證，且維度依服務而異 | [Cloud Quotas overview](https://docs.cloud.google.com/docs/quotas/overview) |
+| 備考建議 | 題目若只要求通知管理者，不要選會直接停用 billing 的高風險方案 | 推論，非官方考綱聲明 |
+
+### 11. 本章快速複習
+
+- Budget = 告警，不是 hard spending cap。
+- Quota = 使用護欄，不是容量 reservation。
+- Label = 整理/成本；Tag = 可供政策條件使用。
+- Billing export + BigQuery = 成本明細分析。
+
+---
+
+## Chapter 5 — Resource Monitoring
+
+中文名稱：資源監控
+
+### 1. Learning Objectives
+
+- 使用 Google Cloud Observability 的 metrics、logs、traces、errors 與 profiles。
+- 建立 Monitoring alerting policy，並查詢、路由與匯出 logs。
+- 以症狀選擇正確診斷工具。
+
+### 2. 核心概念摘要
+
+- Cloud Monitoring：metrics、dashboards、uptime checks、alerting。
+- Cloud Logging：收集、查詢、儲存與 route log entries。
+- Error Reporting：聚合並顯示應用程式錯誤事件。
+- Cloud Trace：分析分散式請求的延遲路徑。
+- Cloud Profiler：持續分析 CPU、memory 等 runtime 資源使用。
+
+### 3. 詳細知識點
+
+#### 3.1 Monitoring 與 alerting
+
+Monitoring 以 monitored resources、metric types、time series 為核心。Alerting policy 通常包含 condition、notification channel 與文件說明；需要考慮 threshold、alignment、duration 與 missing data，避免告警抖動。
+
+#### 3.2 Logging
+
+Logs Explorer 用 Logging Query Language 過濾 log。Log Router 會評估 log entries 並依 sinks 路由；sink destination 可是 log bucket、BigQuery dataset、Cloud Storage bucket 或 Pub/Sub topic。建立 sink 後，destination 還需要讓 sink writer identity 有寫入權限。
+
+Exclusion 可減少進入 log bucket 的可計費 logs，但應先確認稽核與法規需求。Audit Logs 中 Admin Activity 通常與管理操作有關；Data Access 涉及資料讀寫，預設與費用行為需按服務/類型確認。
+
+#### 3.3 Metrics 與 logs 的互補
+
+- Metrics 適合趨勢、門檻與告警。
+- Logs 適合事件細節與根因追查。
+- Log-based metric 把符合 filter 的 log 事件轉成 metric，可進一步 alert。
+
+#### 3.4 Application diagnostics
+
+- 大量相似 exceptions：Error Reporting。
+- 跨服務請求變慢：Cloud Trace。
+- CPU 熱點或 memory allocation：Cloud Profiler。
+- VM / app 指標與 availability：Cloud Monitoring。
+- 詳細事件與 audit trail：Cloud Logging。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Metrics scope | Scoping project | 可觀察多個 monitored projects |
+| Alerting policy | Project | 在 scoping project 中管理 |
+| Log bucket | Project/location | retention 與 location 由 bucket 設定 |
+| Log sink | Organization / folder / project / billing account | 依建立層級路由符合條件的 logs |
+
+### 5. Architecture
+
+```mermaid
+flowchart TD
+    W["Workloads"] --> M["Cloud Monitoring"]
+    W --> L["Cloud Logging"]
+    M --> A["Alerting policy"]
+    L --> R["Log Router / sink"]
+    R --> D["BigQuery, Storage, Pub/Sub"]
+```
+
+### 6. Google Cloud Console
+
+- Metrics Explorer：`Console > Monitoring > Metrics Explorer`
+- Alerting：`Console > Monitoring > Alerting`
+- Logs：`Console > Logging > Logs Explorer`
+- Log routing：`Console > Logging > Log Router`
+- Trace：`Console > Trace > Trace Explorer`
+
+### 7. Cloud Shell / gcloud
+
+```bash
+gcloud logging read 'resource.type="gce_instance"' \
+  --limit=20 \
+  --format=json
+```
+
+- Command group：`gcloud logging`
+- Resource：log entries
+- Action：`read`
+- Filter：只取 `gce_instance` monitored resource
+- `--limit`：最多 20 筆
+- `--format=json`：JSON 格式輸出
+
+### 9. 認證考點
+
+- 「CPU 超過門檻通知 on-call」：Monitoring alerting policy + notification channel。
+- 「特定錯誤文字每分鐘出現太多次告警」：logs-based metric + alert。
+- 「長期分析 logs」：log sink 到 BigQuery；封存則 Cloud Storage；串流處理則 Pub/Sub。
+- 「查誰修改 firewall / IAM」：Cloud Audit Logs + Logs Explorer。
+- 「HTTP request 跨微服務哪段最慢」：Cloud Trace。
+- Sink 不工作時，同時查 filter、destination 與 writer identity IAM。
+
+### 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Google Cloud Observability、Monitoring、Logging、Error Reporting、Tracing、Profiling | 課程公開目錄 |
+| 現行官方文件 | Google Cloud Observability 整合 Monitoring、Logging、Trace、Profiler 等能力 | [Observability overview](https://docs.cloud.google.com/stackdriver/docs) |
+| 現行官方文件 | Log Router 透過 sinks 路由 logs，destination 需正確授權 writer identity | [Routing and storage overview](https://docs.cloud.google.com/logging/docs/routing/overview) |
+| 備考建議 | 先以症狀判斷 metric、log、trace 或 profile，避免只記產品名稱 | 推論，非官方考綱聲明 |
+
+### 11. 本章快速複習
+
+- Metrics 看趨勢並告警；logs 查事件；trace 查 request latency；profile 查程式熱點。
+- Logs-based metric 是從 logs 建 metric，不會取代原始 logs。
+- Sink = filter + destination + writer identity 權限。
+- Alert condition 要考慮 duration，避免瞬時尖峰造成噪音。
+
+---
+
+## 認證重點統整
+
+### ACE 重點
+
+官方 ACE 考綱直接涵蓋以下能力，本課程可作為重點基礎：
+
+1. 建立 resource hierarchy、IAM、API 與 Observability 環境。
+2. 管理 billing account、budgets、alerts 與 billing export。
+3. 規劃 Cloud Storage、Cloud SQL、Firestore、Spanner、Bigtable 等資料服務。
+4. 管理 objects、lifecycle、database backup/restore 與 data queries。
+5. 建立 Monitoring alerts、custom/log-based metrics、log sinks，並查詢 logs。
+6. 管理 IAM policy、roles、service accounts、impersonation 與 short-lived credentials。
+
+官方範圍：[Associate Cloud Engineer exam guide](https://cloud.google.com/learn/certification/guides/cloud-engineer)
+
+### 服務選型與比較
+
+| 情境 | 推薦服務/功能 | 理由 | 常見誤區 |
+|---|---|---|---|
+| VM workload 存取 bucket | Attached service account + 最小 IAM role | 無需長期 key | 把 JSON key 存在 VM |
+| 禁止建立 service account keys | Organization Policy constraint | 限制資源設定 | 用 IAM role 不能表達組織限制 |
+| 一般 relational workload | Cloud SQL | managed MySQL/PostgreSQL/SQL Server | 無規模需求卻選 Spanner |
+| 全球 scale-out relational | Spanner | 強一致、水平擴展 | 用 Bigtable 做 joins |
+| 不確定 object 存取頻率 | Cloud Storage Autoclass | 自動管理 storage class | 手動反覆改 bucket default |
+| 費用超過門檻通知 | Budget alert | actual/forecasted spend 通知 | 認為 budget 是 hard cap |
+| 事件細節與稽核 | Cloud Logging / Audit Logs | 查詢具體 log entries | 只看 metrics 找操作者 |
+| 指標超標通知 | Monitoring alerting policy | time-series condition | 只建立 dashboard 不會通知 |
+| 特定 log pattern 告警 | Logs-based metric + alert | 將事件轉成 metric | 以為 sink 本身會告警 |
+
+### 常見陷阱
+
+- Project display name 可改；project ID 建立後不能改。
+- IAM inherited allow 不會因下層未設定而消失；需要理解 deny 與 policy inheritance。
+- Service account 是 identity；key 只是其中一種、且風險較高的 credential。
+- Cloud Storage bucket 名稱全域唯一，但 bucket 資料 location 是建立時選定的 region/dual-region/multi-region。
+- 改 bucket default storage class 不會回溯修改既有 objects。
+- Budget alert 不會自動限制費用；quota 也不是預算控制工具。
+- Labels、Resource Manager tags、network tags 用途不同。
+- Log sink 需要 destination writer 權限。
+
+### 建議實作清單
+
+1. 建一個練習 project，設定正確 default project/region/zone。
+2. 建 service account，將最小 predefined role 授予它，並用 impersonation 測試。
+3. 建 Cloud Storage bucket，上傳 object，設定 lifecycle，觀察 soft delete。
+4. 建 budget alert 與 Billing export（若帳務權限允許）。
+5. 在 Logs Explorer 查 Compute Engine 或 IAM audit logs。
+6. 建一個簡單 logs-based metric 與 alerting policy。
+7. 練習分辨 quota error、permission denied、API disabled 與 capacity unavailable。
+
+### 待補材料與限制
+
+- 公開頁面沒有提供完整影片 transcript、quiz 題目、lab instructions、實際 command/output。
+- 本筆記因此是「依公開課綱整理並由官方文件補強」，不是逐句摘要。
+- 若提供字幕、PDF、截圖或 lab 執行紀錄，可再加入逐章教材對照、原始指令解析與「我的實際操作」。
+
+### 官方來源
+
+- [課程頁：Essential Google Cloud Infrastructure: Core Services](https://www.skills.google/paths/11/course_templates/49)
+- [Associate Cloud Engineer exam guide](https://cloud.google.com/learn/certification/guides/cloud-engineer)
+- [IAM overview](https://docs.cloud.google.com/iam/docs/overview)
+- [Resource hierarchy access control](https://docs.cloud.google.com/iam/docs/resource-hierarchy-access-control)
+- [Service accounts overview](https://docs.cloud.google.com/iam/docs/service-account-overview)
+- [Cloud Storage storage classes](https://docs.cloud.google.com/storage/docs/storage-classes)
+- [Cloud Storage lifecycle](https://docs.cloud.google.com/storage/docs/lifecycle)
+- [Cloud Storage soft delete](https://docs.cloud.google.com/storage/docs/soft-delete)
+- [Cloud Billing budgets and alerts](https://docs.cloud.google.com/billing/docs/how-to/budgets)
+- [Cloud Quotas overview](https://docs.cloud.google.com/docs/quotas/overview)
+- [Google Cloud Observability](https://docs.cloud.google.com/stackdriver/docs)
+- [Cloud Logging routing and storage](https://docs.cloud.google.com/logging/docs/routing/overview)
+- [`gcloud` CLI reference](https://docs.cloud.google.com/sdk/gcloud/reference)

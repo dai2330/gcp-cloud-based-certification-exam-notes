@@ -53,6 +53,7 @@ nav:
       - Associate Cloud Engineer:
           - Essential Google Cloud Infrastructure:
               - Foundation: courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-foundation.md
+              - Core Services: courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md
 
 plugins:
   - search:
