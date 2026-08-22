@@ -1,0 +1,21 @@
+# MkDocs build output
+site/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/.artifacts/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local-only configuration
+.env
+.env.*
+!.env.example

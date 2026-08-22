@@ -1,0 +1,96 @@
+site_name: GCP ACE 知識筆記
+site_description: Google Cloud 課程筆記與 Associate Cloud Engineer 證照複習網站
+site_author: dai2330
+site_url: https://dai2330.github.io/gcp-cloud-based-certification-exam-notes/
+repo_url: https://github.com/dai2330/gcp-cloud-based-certification-exam-notes
+repo_name: dai2330/gcp-cloud-based-certification-exam-notes
+copyright: 個人學習筆記；Google Cloud 服務名稱與商標屬其各自權利人所有。
+
+exclude_docs: |
+  superpowers/
+
+theme:
+  name: material
+  language: zh-TW
+  icon:
+    logo: material/cloud-outline
+    repo: fontawesome/brands/github
+  font:
+    text: Noto Sans TC
+    code: Roboto Mono
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/weather-night
+        name: 切換至深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: 切換至明亮模式
+
+nav:
+  - 首頁: index.md
+  - ACE 學習路線: ace/learning-path.md
+  - 課程筆記:
+      - Associate Cloud Engineer:
+          - Essential Google Cloud Infrastructure:
+              - Foundation: courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-foundation.md
+
+plugins:
+  - search:
+      lang:
+        - en
+        - zh
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/dai2330/gcp-cloud-based-certification-exam-notes
+      name: GitHub repository
+
+strict: true
