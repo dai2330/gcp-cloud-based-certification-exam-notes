@@ -54,6 +54,8 @@ nav:
           - Essential Google Cloud Infrastructure:
               - Foundation: courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-foundation.md
               - Core Services: courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md
+          - Elastic Google Cloud Infrastructure:
+              - Scaling and Automation: courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md
 
 plugins:
   - search:

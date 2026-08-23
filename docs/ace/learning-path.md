@@ -21,6 +21,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Core Services](../courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md){ .md-button .md-button--primary }
 
+### 3. Elastic Google Cloud Infrastructure: Scaling and Automation
+
+在 Essential 系列之後，進一步掌握 network connectivity、load balancing、MIG autoscaling、Terraform 與 managed services 選型。
+
+[開始閱讀 Scaling and Automation](../courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

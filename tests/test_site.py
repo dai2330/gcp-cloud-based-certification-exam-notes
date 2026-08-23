@@ -10,6 +10,8 @@ COURSE = ROOT / "docs/courses/ace/essential-google-cloud-infrastructure/essentia
 SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Essential_Google_Cloud_Infrastructure_Foundation.source.txt"
 CORE_SERVICES_COURSE = ROOT / "docs/courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md"
 CORE_SERVICES_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Essential_Google_Cloud_Infrastructure_Core_Services.source.txt"
+SCALING_AUTOMATION_COURSE = ROOT / "docs/courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md"
+SCALING_AUTOMATION_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Elastic_Google_Cloud_Infrastructure_Scaling_and_Automation.source.txt"
 
 
 def read(relative: str) -> str:
@@ -153,6 +155,64 @@ class CoreServicesCourseTests(unittest.TestCase):
 
         self.assertIn(f"Core Services: {course_path}", config)
         self.assertLess(config.index("Foundation:"), config.index("Core Services:"))
+        self.assertIn(course_path, homepage)
+        self.assertIn(f"../{course_path}", learning_path)
+
+
+class ScalingAndAutomationCourseTests(unittest.TestCase):
+    def test_scaling_automation_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(SCALING_AUTOMATION_COURSE.is_file())
+
+    def test_scaling_automation_has_one_h1_five_chapters_and_diagrams(self) -> None:
+        content = SCALING_AUTOMATION_COURSE.read_text(encoding="utf-8")
+        h1s = re.findall(r"^# (?!#).+$", content, flags=re.MULTILINE)
+        self.assertEqual(h1s, ["# Elastic Google Cloud Infrastructure: Scaling and Automation"])
+        chapter_h2s = re.findall(r"^## Chapter [1-5] — .+$", content, flags=re.MULTILINE)
+        self.assertEqual(len(chapter_h2s), 5)
+        self.assertGreaterEqual(content.count("```mermaid"), 5)
+
+    def test_scaling_automation_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = SCALING_AUTOMATION_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = SCALING_AUTOMATION_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content = [
+            normalize_layout(line)
+            for line in source_lines
+            if not re.match(r"^#{1,6} ", line)
+        ]
+        normalized_course = [normalize_layout(line) for line in course_lines]
+
+        self.assertEqual(len(source_lines), 821)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_scaling_automation_is_linked_from_all_discovery_surfaces(self) -> None:
+        course_path = (
+            "courses/ace/elastic-google-cloud-infrastructure/"
+            "elastic-google-cloud-infrastructure-scaling-and-automation.md"
+        )
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Elastic Google Cloud Infrastructure:", config)
+        self.assertIn(f"Scaling and Automation: {course_path}", config)
+        self.assertLess(
+            config.index("Essential Google Cloud Infrastructure:"),
+            config.index("Elastic Google Cloud Infrastructure:"),
+        )
         self.assertIn(course_path, homepage)
         self.assertIn(f"../{course_path}", learning_path)
 

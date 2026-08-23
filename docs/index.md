@@ -40,6 +40,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Elastic Google Cloud Infrastructure: Scaling and Automation](courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -75,6 +84,22 @@ hide:
 - **包含：** 服務比較、Cloud Shell、Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · ELASTIC INFRASTRUCTURE</span>
+
+### Elastic Google Cloud Infrastructure: Scaling and Automation
+
+涵蓋 HA VPN、Cloud Interconnect、load balancing、MIG autoscaling、Terraform，以及 managed services 選型。
+
+- **5 個 Chapter**
+- **技術核對：2026-08-22**
+- **包含：** Cloud Shell、Terraform、5 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md)
 
 </article>
 
