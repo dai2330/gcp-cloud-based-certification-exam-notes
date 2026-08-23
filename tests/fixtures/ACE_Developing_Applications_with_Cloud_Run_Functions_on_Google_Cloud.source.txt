@@ -1,0 +1,933 @@
+# Developing Applications with Cloud Run Functions on Google Cloud — ACE 考證筆記
+
+> 課程連結：https://www.skills.google/paths/11/course_templates/505
+> 課程長度：7 小時 15 分鐘（公開頁面）
+> 難度：Intermediate
+> 適用證照：Associate Cloud Engineer（ACE）
+> 整理與官方文件校正日期：2026-08-23
+> 說明：依公開課程綱要、可存取的 Lab 說明與現行 Google Cloud 官方文件整理。未取得的影片逐字稿、Quiz 題目及個人 Lab 終端輸出不臆造。
+
+## 課程結構與 ACE 優先度
+
+| Module | 課程章節 | ACE 優先度 | 核心內容 |
+|---:|---|---:|---|
+| 1 | Course introduction | 低 | 課程定位 |
+| 2 | Introduction to Cloud Run functions | 很高 | FaaS、HTTP／Event-driven function、部署與 Revision |
+| 3 | Calling and connecting Cloud Run functions | 很高 | Trigger、Workflows、VPC 連線 |
+| 4 | Securing Cloud Run functions | 很高 | Invocation、Function identity、IAM 與資料保護 |
+| 5 | Integrating with cloud databases | 高 | Firestore、Memorystore、Secret、BigQuery Remote Function |
+| 6 | Best practices for functions | 很高 | 無狀態、冪等、重試、效能、Scaling、Traffic split |
+| 7 | Course review | 中 | ACE 情境題與排錯框架 |
+
+本課程偏應用程式開發，但現行 [ACE 考試指南](https://cloud.google.com/learn/certification/guides/cloud-engineer)明確涵蓋 Cloud Run／Cloud Functions 的部署、Scaling、版本／Traffic splitting，以及接收 Pub/Sub、Cloud Storage 等 Google Cloud 事件，因此 Module 2、3、4、6 與 ACE 直接相關。BigQuery Remote Function 的 SQL 細節較偏延伸，但其 IAM 與 Location 關係值得理解。
+
+# Chapter 1 — Course Introduction
+中文名稱：課程介紹
+
+## 1. Learning Objectives
+
+- 理解 Cloud Run functions 的 FaaS（Functions as a Service）定位。
+- 建立本課程與上一門 Cloud Run Fundamentals 的差異。
+- 確認 ACE 需要掌握的部署、安全、事件與維運範圍。
+
+## 2. 核心概念摘要
+
+Cloud Run functions 適合實作回應 HTTP Request 或 CloudEvent 的單一目的函式。開發者提供 Function source code、Entry point 與 Trigger；平台使用 Functions Framework、Buildpacks、Cloud Build、Artifact Registry 及 Cloud Run 建置並執行函式。
+
+一般 Cloud Run 讓開發者直接提供完整 Container／Service；Cloud Run functions 則以函式原始碼與 Entry point 為主要開發模型，但現行執行資源仍呈現為 Cloud Run Service 與 Revision。
+
+## 3. 詳細知識點
+
+### 3.1 適合 Cloud Run functions 的情境
+
+- HTTP Webhook、輕量 API Endpoint。
+- Pub/Sub Message、Cloud Storage Object、Firestore Document 等事件處理。
+- 單一目的、短生命週期、可無狀態執行的程式邏輯。
+- 希望由平台處理 Build、Container packaging、HTTPS Endpoint 與 Scaling。
+
+### 3.2 不適合的情境
+
+- 需要完整 OS／VM 控制：Compute Engine。
+- 需要 Kubernetes API、Node 或 DaemonSet：GKE。
+- 大型多路由 Web Service、複雜 Sidecar／Container 設計：一般 Cloud Run Service 可能更直接。
+- 需要明確批次任務與成功／失敗結束語意：考慮 Cloud Run Jobs。
+
+## 9. 認證考點
+
+- ACE 不只考「什麼是函式」，更重視如何部署、更新 Scaling、設定 Traffic、接收事件與處理 IAM。
+- 題目寫 Cloud Functions 時須留意世代與教材年代；現行產品與文件大量整合到 Cloud Run functions。
+
+## 11. 本章快速複習
+
+- Cloud Run functions = 以 Function source／Entry point 為中心的 Serverless FaaS。
+- HTTP Function 回應 Request；Event-driven Function 回應 CloudEvent。
+- 平台背後整合 Build、Registry、Cloud Run 與 Eventarc。
+
+# Chapter 2 — Introduction to Cloud Run Functions
+中文名稱：Cloud Run functions 入門
+
+## 1. Learning Objectives
+
+- 說明 Cloud Run functions 的用途、優點與支援的函式類型。
+- 使用 Functions Framework 開發及本機測試函式。
+- 從原始碼部署 HTTP 與 Event-driven Function。
+- 理解 Entry point、Runtime、Service、Revision 與 Trigger。
+
+## 2. 核心概念摘要
+
+Functions Framework 將函式包裝為本機可測試的 HTTP Server，並支援 HTTP signature 與 CloudEvents signature。部署時，Google Cloud 使用 Buildpacks 與 Cloud Build 將 Source code 建成 Container image，存入 Artifact Registry，再建立 Cloud Run Service／Revision。
+
+## 3. 詳細知識點
+
+### 3.1 HTTP Function vs Event-driven Function
+
+| 類型 | 輸入 | 適合情境 | 完成條件 |
+|---|---|---|---|
+| HTTP Function | HTTP Request | Webhook、API、同步呼叫 | 回傳有效 HTTP Response |
+| Event-driven Function | CloudEvent | Pub/Sub、Cloud Storage、Firestore 等事件 | Handler 正常 Return／Resolve |
+
+依現行 [Write Cloud Run functions](https://cloud.google.com/run/docs/write-functions)，Event-driven Function 使用 CloudEvents 標準；HTTP 與 CloudEvent Handler 都必須在回傳前完成必要的非同步工作，否則背景工作可能無法完成。
+
+### 3.2 Functions Framework 與 Entry point
+
+- Functions Framework：各支援語言的 Open Source Framework，負責啟動本機 Server、路由呼叫及解析 CloudEvent。
+- Entry point：部署時指定要執行的函式名稱或完整 Class name。
+- Signature type：HTTP 或 CloudEvent，必須與 Trigger 類型相符。
+- Runtime／Base image：語言及執行環境版本；應選仍受支援的版本。
+
+### 3.3 Python HTTP Function 範例
+
+`main.py`：
+
+```python
+import functions_framework
+
+@functions_framework.http
+def hello_http(request):
+    name = request.args.get("name", "World")
+    return (f"Hello, {name}!", 200)
+```
+
+`requirements.txt`：
+
+```text
+functions-framework==3.*
+```
+
+此範例只用於說明 Functions Framework 結構，不代表課程影片原始碼。
+
+### 3.4 Python CloudEvent Function 範例
+
+```python
+import functions_framework
+
+@functions_framework.cloud_event
+def handle_event(cloud_event):
+    print(f"Event ID: {cloud_event['id']}")
+    print(f"Event type: {cloud_event['type']}")
+```
+
+Event data 的 Schema 由事件來源及 Event type 決定，不應假設所有 CloudEvent 的 `data` 都相同。
+
+### 3.5 Source deployment pipeline
+
+```mermaid
+flowchart TD
+  S["Function source + dependencies"] --> B["Buildpacks / Cloud Build"]
+  B --> A["Artifact Registry image"]
+  A --> R["Cloud Run Service / Revision"]
+  T["HTTP or Eventarc trigger"] --> R
+```
+
+現行 [Deploy a Cloud Run function](https://cloud.google.com/run/docs/deploy-functions)指出，Function deployment 會自動使用 Buildpacks 與 Cloud Build，並將 Artifact 存入 Artifact Registry；新專案可能自動建立 `cloud-run-source-deploy` Repository。
+
+### 3.6 Revision 與 Traffic split
+
+重新部署 Source 或修改執行設定會產生新 Revision。可以保留多個 Revision、把部分流量導向新版、測試後逐步遷移，或把流量切回穩定版。不要直接修改舊 Revision，因 Revision 是不可變資源。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Cloud Run Function／Service | Regional | 部署時指定 Region；Endpoint、延遲與資料位置受其影響 |
+| Revision | Regional，隸屬 Service | 不可變；可透過 Service Traffic 分配流量 |
+| Artifact Registry repository | Location-specific | 儲存 Build 產生的 Container image |
+| Cloud Build build | Project 中的作業 | Build identity 與 Function runtime identity 不同 |
+| Eventarc Trigger | Regional 或特定 Location | 通常應與事件來源及 Function Location 相容 |
+
+## 5. Architecture
+
+```mermaid
+flowchart LR
+  H["HTTP Client"] --> F["Cloud Run Function"]
+  E["Google Cloud Event"] --> V["Eventarc Trigger"]
+  V --> F
+  F --> G["Google Cloud APIs"]
+```
+
+## 6. Google Cloud Console
+
+- `Console > Cloud Run > Services > Write a function`：建立 Function。
+- 設定 Service name、Region、Runtime／Base image、Entry point 與 Source。
+- HTTP Function 設定 Authentication；Event-driven Function 新增 Eventarc Trigger。
+- `Console > Cloud Run > Function > Source`：修改 Source 並重新部署。
+- `Console > Cloud Run > Function > Revisions`：查看版本與狀態。
+
+Console 標籤會更新，應以目前介面為準。
+
+## 7. Cloud Shell / gcloud
+
+現行 Cloud Run 原生部署方式：
+
+```bash
+gcloud services enable \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com \
+  run.googleapis.com \
+  logging.googleapis.com
+
+gcloud run deploy FUNCTION_NAME \
+  --source=. \
+  --function=FUNCTION_ENTRYPOINT \
+  --base-image=BASE_IMAGE \
+  --region=REGION
+```
+
+- Command group：`gcloud run`。
+- Resource／Action：`deploy` 從 Source 建置並建立 Cloud Run Function Service。
+- `--source=.`：Source directory 為目前目錄。
+- `--function`：程式內的 Entry point。
+- `--base-image`：支援語言 Runtime 的 Base image ID。
+- `--region`：Function 所在 Region。
+
+若教材或既有環境使用 Cloud Functions v2 API，可看到相容命令：
+
+```bash
+gcloud functions deploy FUNCTION_NAME \
+  --gen2 \
+  --runtime=RUNTIME \
+  --region=REGION \
+  --source=. \
+  --entry-point=FUNCTION_ENTRYPOINT \
+  --trigger-http
+```
+
+此命令仍用於既有 Cloud Functions v2 工作流程；現行新 Cloud Run Function 文件優先展示 `gcloud run deploy --function`。不要混用 `--function` 與 `--entry-point` 的命令群組語法。
+
+## 8. Command Output
+
+未提供課程 Lab 執行紀錄，因此不建立虛構 Output。部署後應確認 Build 成功、Service URL、最新 Revision Ready、Function entry point 及 Trigger 狀態。
+
+## 9. 認證考點
+
+- Source deployment 背後仍會使用 Cloud Build、Artifact Registry 與 Cloud Run。
+- HTTP Trigger 與 Event Trigger 的 Handler signature 不同。
+- Entry point 名稱錯誤會造成 Build 或 Container startup 失敗。
+- 新部署產生 Revision，可做 Traffic split；不是原地修改舊版本。
+- `gcloud run deploy --function` 與 `gcloud functions deploy --gen2` 是不同管理介面，Flags 不相同。
+
+## 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | 使用 Console 與 gcloud 部署 HTTP／Event-driven Function，進行本機單元測試與多 Revision 切流 | Module 2／Develop and Deploy Cloud Run Functions Lab |
+| 現行官方文件 | 新 Cloud Run 原生流程使用 `gcloud run deploy --source . --function ...`；`gcloud functions deploy` 保留給既有 v2 API 相容流程 | [Deploy a Cloud Run function](https://cloud.google.com/run/docs/deploy-functions) |
+| 備考建議 | 理解資源模型與 Flags 所屬命令群組，不死背舊 Lab 的單一路徑 | 推論，非考綱原文 |
+
+## 11. 本章快速複習
+
+- HTTP Handler 接 Request；CloudEvent Handler 接 Event。
+- Entry point 必須和 Source code 定義一致。
+- Source → Buildpacks／Cloud Build → Artifact Registry → Cloud Run Revision。
+- 新部署形成 Revision，可切流及回滾。
+
+# Chapter 3 — Calling and Connecting Cloud Run Functions
+中文名稱：呼叫與連接 Cloud Run functions
+
+## 1. Learning Objectives
+
+- 辨認 HTTP 與 Eventarc Trigger。
+- 使用 Workflows 呼叫通過驗證的 Function。
+- 讓 Function 存取 VPC 內的資源。
+- 理解 Ingress、Egress 與 Invocation authentication 的差異。
+
+## 2. 核心概念摘要
+
+HTTP Function 由 HTTPS Request 呼叫；Event-driven Function 通常由 Eventarc 將 Google Cloud Event 傳送至底層 Cloud Run Service。Function 呼叫 VPC 私有資源屬於 Egress 問題，可使用 Direct VPC egress 或 Serverless VPC Access connector；這不等於控制進入 Function 的 Ingress。
+
+## 3. 詳細知識點
+
+### 3.1 Trigger 類型
+
+| Trigger | 呼叫模型 | 典型用途 |
+|---|---|---|
+| HTTP | Client 直接送 HTTP Request | API、Webhook、同步處理 |
+| Pub/Sub event | Eventarc／事件基礎設施傳送 CloudEvent | 非同步訊息處理 |
+| Cloud Storage event | Object 建立、刪除等事件 | 檔案處理 Pipeline |
+| Firestore event | Document create／update／delete | 資料變更後續處理 |
+| Workflows | Workflow 以 HTTP + OIDC 呼叫 | 跨服務流程協調與錯誤處理 |
+
+### 3.2 Eventarc
+
+Eventarc Trigger 包含 Event provider、Event type、Filters、Destination 及用來呼叫 Destination 的 Service Account。Trigger identity 必須有 Cloud Run Invoker，Location 通常應與事件來源及 Destination 相容。
+
+Event delivery 可能重複，因此 Function 應使用 Event ID、業務鍵或交易設計實作 Idempotency。
+
+### 3.3 Workflows 呼叫 Function
+
+依現行 [Workflows 呼叫 Cloud Run functions 文件](https://cloud.google.com/workflows/docs/calling-run-functions)，應使用 OIDC 驗證；對底層 Cloud Run Service 授予 Workflow Service Account `roles/run.invoker`，而不是只授予舊式 `roles/cloudfunctions.invoker`。
+
+```yaml
+main:
+  steps:
+    - call_function:
+        call: http.get
+        args:
+          url: ${sys.get_env("FUNCTION_URL")}
+          auth:
+            type: OIDC
+        result: response
+    - return_result:
+        return: ${response.body}
+```
+
+此 YAML 為現行模式示例，不是課程逐字內容。
+
+### 3.4 VPC Egress
+
+Function 若要連到內部 IP、Memorystore、Private Cloud SQL 或其他 VPC Resource，需要設定 VPC Egress 路徑與 Firewall／Route／DNS。
+
+現行 [Direct VPC egress 與 VPC connector 比較](https://cloud.google.com/run/docs/configuring/connecting-vpc)將 Direct VPC egress 列為建議方案；課程閱讀若只介紹 Serverless VPC Access connector，應理解它仍可使用，但會有 Connector 維運與運算費用。
+
+| 方式 | 特性 | ACE 判斷 |
+|---|---|---|
+| Direct VPC egress | 不需管理 Connector、較低延遲與較高吞吐 | 現行優先考慮，但需檢查 Region、Subnet IP 與支援條件 |
+| Serverless VPC Access connector | 建立受管 Connector instances | 舊架構或特定相容需求；Connector 是 Regional 且有成本 |
+
+`private-ranges-only` 與 `all-traffic` 代表不同 Egress 路由範圍；若選 `all-traffic`，對 Internet Egress、Cloud NAT 與成本都可能有影響。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Eventarc Trigger | Regional／Location-specific | Location 須與事件來源支援範圍及 Destination 相容 |
+| Workflows Workflow | Regional | 呼叫跨區 Endpoint 時需考慮延遲與資料位置 |
+| VPC Network | Global | Subnet 與 Connector 才是 Regional |
+| Subnet | Regional | Direct VPC egress 使用指定 Region 的 Subnet |
+| Serverless VPC Access connector | Regional | Function／Service 與 Connector Location 必須相容 |
+
+## 5. Architecture
+
+```mermaid
+flowchart TD
+  E["Event source"] --> T["Eventarc Trigger"]
+  T --> F["Cloud Run Function"]
+  W["Workflows + OIDC"] --> F
+  F --> V["Direct VPC egress / Connector"]
+  V --> P["Private VPC resource"]
+```
+
+## 6. Google Cloud Console
+
+- `Console > Cloud Run > Function > Triggers > Add trigger`。
+- `Console > Eventarc > Triggers`：查看 Event filters、Destination、Region 與 Service Account。
+- `Console > Workflows > Create`：建立 Workflow 並指定 Service Account。
+- `Console > Cloud Run > Function > Edit and deploy new revision > Networking`：設定 VPC Egress。
+- `Console > VPC network > Serverless VPC access`：管理舊式 Connector。
+
+## 7. Cloud Shell / gcloud
+
+建立 Eventarc Trigger 的結構示例：
+
+```bash
+gcloud eventarc triggers create TRIGGER_NAME \
+  --location=TRIGGER_LOCATION \
+  --destination-run-service=FUNCTION_NAME \
+  --destination-run-region=FUNCTION_REGION \
+  --event-filters=type=EVENT_TYPE \
+  --service-account=TRIGGER_SERVICE_ACCOUNT
+```
+
+- Command group：`gcloud eventarc triggers`。
+- Resource：Eventarc Trigger。
+- Action：`create`。
+- `--event-filters`：依 Event type 與 Provider 設定；所需 Filter 不是所有事件都相同。
+- `--service-account`：Eventarc 呼叫 Destination 時使用的身分。
+
+不要直接複製 `EVENT_TYPE` Placeholder；應查所選 Provider 的正式 Event type 與必要 Filters。
+
+## 8. Command Output
+
+未提供 Connect Cloud Run Functions Lab 的實際 Trigger、VPC 或 Workflow 輸出，因此不虛構。應檢查 Trigger Active、Destination、Trigger Service Account、Invoker binding、VPC Egress 設定與 Function Logs。
+
+## 9. 認證考點
+
+- Workflows 呼叫私有 Function：OIDC + Workflow Service Account + `roles/run.invoker`。
+- Eventarc Trigger Service Account 與 Function Runtime Service Account 是不同身分。
+- VPC Connector／Direct VPC egress 解決 Outbound 連線，不等於 Ingress 控制。
+- VPC 是 Global；Subnet、Connector 與 Function 是 Regional。
+- 事件來源、Trigger 與 Function Location 不相容時，部署可能失敗或不是理想設計。
+
+## 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Workflows、Trigger 與 Serverless VPC Access | Module 3 |
+| 現行官方文件 | Direct VPC egress 為現行建議；Connector 仍可用 | [VPC egress comparison](https://cloud.google.com/run/docs/configuring/connecting-vpc) |
+| 現行官方文件 | Workflows 呼叫現行 Cloud Run Function 應授予底層 Service 的 Cloud Run Invoker | [Invoke functions from Workflows](https://cloud.google.com/workflows/docs/calling-run-functions) |
+
+## 11. 本章快速複習
+
+- HTTP Client 直接呼叫；Cloud Event 通常經 Eventarc。
+- Workflows 使用 OIDC。
+- Trigger identity 負責「叫函式」；Runtime identity 負責「函式叫其他 API」。
+- Direct VPC egress／Connector 是 Function 到 VPC 的出口路徑。
+
+# Chapter 4 — Securing Cloud Run Functions
+中文名稱：保護 Cloud Run functions
+
+## 1. Learning Objectives
+
+- 設定 Function Invocation authentication 與 Authorization。
+- 區分 Deployer、Caller、Trigger identity、Runtime identity。
+- 使用最小權限與 Secret Manager 保護資料。
+- 理解 Network access 與 IAM 的互補關係。
+
+## 2. 核心概念摘要
+
+安全題要先辨認「誰在做什麼」：Deployer 建立 Function、Caller／Trigger 呼叫 Function、Runtime Service Account 存取資料。每個 Principal 都要在正確資源獲得必要 Role；不能把所有權限都給同一個 Default Service Account。
+
+## 3. 詳細知識點
+
+### 3.1 Identity matrix
+
+| Identity | 行為 | 常見權限 |
+|---|---|---|
+| Deployer | Build／Deploy Function、附加 Runtime Service Account | Cloud Run Source Developer、Service Usage Consumer、Service Account User 等必要 Role |
+| HTTP Caller | 呼叫私有 Function | `roles/run.invoker` + ID token |
+| Eventarc Trigger identity | 將 Event 傳給 Function | Destination 的 `roles/run.invoker` |
+| Runtime Service Account | Function code 呼叫 Firestore、Secret Manager 等 | 目標 Resource 的最小 Predefined role |
+| Build Service Account | 將 Source 建成 Artifact 並部署 | Builder 所需 Role；不是 Runtime identity |
+
+依現行 [Cloud Run functions invocation authentication](https://cloud.google.com/functions/docs/securing/authenticating)，私有 HTTP Function 的 Principal 必須同時具有 Invoke permission 並提供 ID token；現行底層權限通常是 `run.routes.invoke`，由 `roles/run.invoker` 提供。
+
+### 3.2 Authentication vs Authorization
+
+- Authentication：確認 Caller 是誰，私有 HTTPS Function 通常使用 ID token。
+- Authorization：確認 Caller 是否具有 Invoke permission。
+- Administration：建立、更新、刪除 Function 的權限，與 Invocation 不同。
+
+只有 ID token 但沒有 Invoker 仍會失敗；有 Role 但請求未帶正確 Audience 的 ID token 也可能得到 `401`／`403`。
+
+### 3.3 Function identity 與 ADC
+
+Function code 使用 Application Default Credentials（ADC）取得 Runtime Service Account 的短期憑證。不要把 Service Account key JSON 儲存在 Source、Artifact Registry Image 或 Environment variable。
+
+### 3.4 Secret Manager 與 CMEK
+
+- Password、API key、Certificate 等放 Secret Manager。
+- Runtime Service Account 取得指定 Secret 的 Secret Accessor。
+- Secret 以 Environment variable 提供時固定 Version，可提高 Revision 可重現性。
+- 需要自行控制 Encryption key lifecycle 時才考慮 Customer-managed encryption keys（CMEK）；需同時管理 Key、IAM、Location 與停用／刪除風險。
+
+### 3.5 Network security
+
+Ingress 控制可接受的網路來源；IAM 控制可呼叫的 Principal；VPC Service Controls 可建立 Service perimeter 防止資料外洩。三者目的不同，不可互相完全取代。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Runtime Service Account | Project 中建立的 IAM Resource／Principal | 可在其他資源獲得 Role；應用程式通常使用專用身分 |
+| Cloud Run Service IAM | 特定 Regional Service | Invoker 可授予單一 Function Service，避免 Project-wide 過度授權 |
+| Secret Manager Secret | Global Secret resource | 權限可授在單一 Secret；Cloud Run 不支援 Regional Secret 掛載的情況需查現行限制 |
+| Cloud KMS Key | Regional／Multi-regional location | CMEK Resource Location 必須與受保護資源相容 |
+
+## 5. Architecture
+
+```mermaid
+flowchart TD
+  D["Deployer"] -->|"deploy + actAs"| F["Function"]
+  C["Caller / Trigger"] -->|"ID token + run.invoker"| F
+  F -->|"Runtime identity"| S["Secret / Database / API"]
+```
+
+## 6. Google Cloud Console
+
+- `Console > Cloud Run > Function > Permissions`：管理 Invoker。
+- `Console > IAM & Admin > Service Accounts`：建立專用 Runtime Service Account。
+- `Console > Cloud Run > Function > Edit and deploy new revision > Security`：選擇 Service Account。
+- `Console > Security > Secret Manager > Secret > Permissions`：授予單一 Secret 存取權。
+
+## 7. Cloud Shell / gcloud
+
+建立 Runtime identity 並授權單一 Secret：
+
+```bash
+gcloud iam service-accounts create FUNCTION_SA_NAME
+
+gcloud secrets add-iam-policy-binding SECRET_NAME \
+  --member="serviceAccount:FUNCTION_SA_EMAIL" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud run services update FUNCTION_NAME \
+  --region=REGION \
+  --service-account=FUNCTION_SA_EMAIL
+```
+
+呼叫私有 HTTP Function：
+
+```bash
+FUNCTION_URL="$(gcloud run services describe FUNCTION_NAME \
+  --region=REGION \
+  --format='value(status.url)')"
+
+curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  "$FUNCTION_URL"
+```
+
+`print-identity-token` 產生 ID token；執行中的使用者或 Service Account 仍必須具有 Invoker。正式 Service-to-Service 呼叫應使用 Workload identity／Service Account，不依賴個人長期憑證。
+
+## 8. Command Output
+
+未提供 Security Module 實際輸出。不虛構 Policy binding 或 Token。排錯時應區分：`401` 多為缺少／無效 Token，`403` 多為已辨認 Principal 但沒有權限或受政策限制；仍應以實際 Log 與 Audit Log 為準。
+
+## 9. 認證考點
+
+- 現行 Cloud Run Function Invoker 通常授在底層 Cloud Run Service。
+- Deployer 的 `actAs`、Caller 的 Invoker、Runtime 的資料 Role 不可混淆。
+- Project-level Editor 不是最小權限答案。
+- Secret 不寫入 Source／一般 Environment variable。
+- 公開 Function 才對 `allUsers` 授權；內部事件處理通常維持 Authentication。
+
+## 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Access、Authentication、Function identity、資料保護 | Module 4 |
+| 現行官方文件 | Cloud Run functions 的 Invoke permission 管理於底層 Cloud Run Service，使用 Cloud Run Invoker | [Authenticate for invocation](https://cloud.google.com/functions/docs/securing/authenticating) |
+| 備考建議 | 權限題先畫出五個 Identity，再決定 Role 放在哪個 Resource | 推論，非官方考綱原文 |
+
+## 11. 本章快速複習
+
+- Caller：ID token + Invoker。
+- Deployer：部署權限 + `actAs`。
+- Runtime：目標資料資源最小權限。
+- Build identity 與 Runtime identity 不同。
+
+# Chapter 5 — Integrating with Cloud Databases
+中文名稱：整合雲端資料庫
+
+## 1. Learning Objectives
+
+- 將 Function 與 Firestore、Memorystore 等服務整合。
+- 使用 Environment variable 與 Secret Manager 提供連線設定。
+- 理解 BigQuery Remote Function 的連線與 Location 要求。
+
+## 2. 核心概念摘要
+
+Cloud Run Function 應使用 Cloud Client Libraries 與 ADC 存取 Google Cloud Database。無伺服器 Instance 會水平擴縮，資料庫連線、Connection pool、Maximum instances、Concurrency 與重試策略必須一起設計。
+
+## 3. 詳細知識點
+
+### 3.1 Firestore integration
+
+- Firestore 是 Serverless Document database。
+- Function 可主動使用 Client Library 讀寫 Document，也可由 Firestore Event 觸發。
+- Runtime Service Account 需要適當 Firestore／Datastore IAM Role。
+- Event-driven Function 可能重試及重複執行，寫入應使用 Event ID 或交易確保冪等。
+
+### 3.2 Memorystore integration
+
+Memorystore 提供 Redis／Valkey 等受管 In-memory data store。它通常使用 Private IP，因此 Function 需要 Direct VPC egress 或 Serverless VPC Access connector，並確認 Subnet、Firewall、Region 與 DNS。
+
+不要為每次 Invocation 無限制建立新連線；可在 Global scope 初始化 Client 以供同一 Instance 後續 Invocation 重用，但程式必須能在連線中斷時重建。
+
+### 3.3 Environment variables and Secrets
+
+| 資料 | 儲存方式 | 原因 |
+|---|---|---|
+| Project ID、Feature flag、非敏感 Endpoint | Environment variable | 便於依 Revision 設定 |
+| Password、API key、Certificate | Secret Manager | IAM 控制、版本與稽核 |
+| Service Account credential JSON | 不應儲存 | 使用 Runtime identity + ADC |
+
+### 3.4 BigQuery Remote Functions
+
+BigQuery Remote Function 讓 GoogleSQL 呼叫 Cloud Run Function／Cloud Run HTTP Endpoint。主要流程：
+
+1. 建立 HTTP Function Endpoint。
+2. 建立 BigQuery `CLOUD_RESOURCE` Connection。
+3. 將 Connection 建立的 Service Account 授予 Function 的 Cloud Run Invoker。
+4. 使用 `CREATE FUNCTION ... REMOTE WITH CONNECTION` 建立 Remote Function。
+
+依現行 [BigQuery Remote Functions](https://cloud.google.com/bigquery/docs/remote-functions)，Connection、Dataset 與 Endpoint 有 Location 相容要求；Remote 呼叫可能因暫時性錯誤重複，因此 Endpoint 也應具冪等性。Remote Function 並非把自訂程式碼直接執行在 BigQuery Slot 內。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Firestore database | Regional 或 Multi-regional location | Eventarc Trigger 與 Function 應考慮 Location 相容性 |
+| Memorystore instance | Regional | Private IP 位於 VPC；Function Egress 必須可達 |
+| BigQuery Dataset | Regional 或 Multi-regional | Remote Function、Connection 與 Endpoint 需符合 Location 規則 |
+| BigQuery Connection | Regional／Multi-regional | 產生 Connection Service Account 呼叫 Endpoint |
+| Cloud Run Function | Regional | 應靠近資料服務以降低延遲與跨區流量 |
+
+## 5. Architecture
+
+```mermaid
+flowchart TD
+  F["Cloud Run Function"] --> D["Firestore"]
+  F --> V["VPC egress"]
+  V --> M["Memorystore"]
+  B["BigQuery Remote Function"] --> C["Cloud Resource Connection"]
+  C --> F
+```
+
+## 6. Google Cloud Console
+
+- `Console > Firestore > Databases`：查看 Database 與資料。
+- `Console > Memorystore`：查看 Instance、Region、Private IP。
+- `Console > Cloud Run > Function > Variables and Secrets`：設定非敏感變數及 Secret reference。
+- `Console > BigQuery > Explorer > Connections`：建立 Cloud Resource Connection。
+- `Console > Cloud Run > Function > Permissions`：授予 BigQuery Connection Service Account Invoker。
+
+## 7. Cloud Shell / gcloud
+
+Firestore Event 的 Eventarc 結構會依 Database、Event type 與資料格式而異；以下只示範檢查資源：
+
+```bash
+gcloud firestore databases list
+gcloud eventarc triggers list --location=TRIGGER_LOCATION
+gcloud run services describe FUNCTION_NAME --region=REGION
+```
+
+不要在未確認 Firestore Database Location、Event provider 與正式 Event filters 前直接建立 Trigger。
+
+## 8. Command Output
+
+未提供 Integrate Cloud Run Functions with Firestore Lab 輸出，因此不虛構 Document ID、Trigger Log 或 Function URL。驗證時應保存寫入前後 Document、Eventarc delivery、Revision Log 與 IAM evidence。
+
+## 9. 認證考點
+
+- Function 使用 ADC，不使用內嵌 Service Account key。
+- Memorystore Private IP 需要 VPC Egress。
+- 自動擴縮可能壓垮資料庫連線；設定 Maximum instances／Concurrency 與 Pool。
+- Event-driven database 寫入必須防重複。
+- BigQuery Connection Service Account 是呼叫者，需 Function Invoker。
+
+## 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Firestore Lab、Memorystore、Environment variable、Secret、BigQuery Remote Function | Module 5 |
+| 現行官方文件 | BigQuery Remote Function 使用 Cloud Resource Connection，且有 Dataset／Connection／Endpoint Location 規則 | [Remote functions](https://cloud.google.com/bigquery/docs/remote-functions) |
+| 備考建議 | ACE 以服務選型、IAM、Location、部署與排錯為主；Remote Function SQL 細節列為延伸 | 推論，非考綱原文 |
+
+## 11. 本章快速複習
+
+- Firestore：Client Library 或 Event Trigger。
+- Memorystore：Private IP + VPC Egress。
+- Secret Manager：敏感設定；Environment variable：非敏感設定。
+- BigQuery Remote Function：Connection Service Account 呼叫 HTTP Endpoint。
+
+# Chapter 6 — Best Practices for Functions
+中文名稱：函式最佳實務
+
+## 1. Learning Objectives
+
+- 撰寫可安全重試、無狀態且可水平擴縮的 Function。
+- 改善 Cold start、依賴載入、連線與資源使用。
+- 正確設定 Timeout、Memory、Concurrency、Min／Max instances 與 Traffic。
+
+## 2. 核心概念摘要
+
+Function 可能被並行執行、重試、重複傳送、重新啟動或縮至零。正確設計必須假設 Instance 是 Ephemeral，必要工作在 Return 前完成，事件處理具 Idempotency，外部連線可重建，並用 Scaling 限制保護下游服務。
+
+## 3. 詳細知識點
+
+### 3.1 Stateless and idempotent
+
+- 不把必要狀態只存在 Instance Memory 或 Local filesystem。
+- 可在 Global scope 快取唯讀資料或重用 Client，但不能依賴它一定存在。
+- Event handler 以 Event ID／Business key 防止重複副作用。
+- Database 更新使用 Transaction、Conditional write 或 Upsert 策略。
+
+現行 [Functions best practices](https://cloud.google.com/run/docs/tips/functions-best-practices)明確建議撰寫 Idempotent Function，使失敗 Invocation 可以安全重試。
+
+### 3.2 Termination and asynchronous work
+
+HTTP Function 必須在回應前完成必要工作；CloudEvent Function 必須在 Return／Promise Resolve 前完成。回傳後仍執行的 Thread、Future、Callback 或 Process 可能被平台停止，造成未定義行為。
+
+### 3.3 Retry strategy
+
+- 只重試 Transient failure，不重試永久性輸入錯誤。
+- 使用 Exponential backoff 與 Jitter。
+- 設定最大重試時間／次數或 Dead-letter handling，避免 Poison event 無限循環。
+- 啟用自動 Retry 前，先確認 Function 冪等。
+- Log 要包含 Event ID、Attempt／Correlation ID，但不得記錄 Secret。
+
+### 3.4 Performance
+
+- 減少依賴數量及 Initialization time。
+- 在 Global scope 初始化可安全重用的 Client／Connection pool。
+- 使用 Lazy initialization 處理非每次都需要的昂貴物件。
+- 選擇足夠 Memory／CPU；過低資源可能增加延遲甚至反而增加成本。
+- Minimum instances 降低 Cold start，但增加持續費用。
+
+### 3.5 Scaling and downstream protection
+
+| 設定 | 目的 | 風險／取捨 |
+|---|---|---|
+| Minimum instances | 降低 Cold start | 閒置仍可能產生成本 |
+| Maximum instances | 成本上限、保護資料庫 | 流量超量時排隊／失敗 |
+| Concurrency | 每 Instance 同時請求量 | 太高會爭用 CPU／Memory；太低會增加 Instance |
+| Timeout | 限制單次執行時間 | 太短造成中斷；太長可能延後失敗與增加成本 |
+| Traffic split | Canary／Rollback | 必須監控每個 Revision 的錯誤與延遲 |
+
+### 3.6 Observability
+
+- Structured Logging：Severity、Trace／Correlation ID、Event ID。
+- Cloud Monitoring：Request count、Latency、Error rate、Instance count。
+- Error Reporting：聚合應用錯誤。
+- Audit Logs：誰部署、修改 IAM 或 Trigger。
+- Alerting：依可用性與 Error budget 設定，而非只看 CPU。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Function Scaling setting | Service／Revision 設定 | 修改會建立新 Revision；影響成本、延遲與下游容量 |
+| Cloud Logging Log entry | 依 Monitored resource、Project | Function Logs 通常歸屬 Cloud Run Revision Resource type |
+| Monitoring Alerting Policy | Project／Metrics scope | 可跨多個 Monitored projects，需確認 Metrics scope |
+
+## 5. Architecture
+
+```mermaid
+flowchart TD
+  T["Trigger / Request"] --> F["Idempotent Function"]
+  F --> D["Durable data store"]
+  F --> L["Structured logs / metrics"]
+  X["Retry with backoff"] --> F
+```
+
+## 6. Google Cloud Console
+
+- `Console > Cloud Run > Function > Edit and deploy new revision > Scaling`。
+- `Console > Cloud Run > Function > Manage traffic`。
+- `Console > Cloud Run > Function > Observability > Logs／Metrics`。
+- `Console > Monitoring > Alerting > Create policy`。
+- `Console > Logging > Logs Explorer`：依 Service／Revision／Severity 過濾。
+
+## 7. Cloud Shell / gcloud
+
+```bash
+gcloud run services update FUNCTION_NAME \
+  --region=REGION \
+  --min=MIN_INSTANCES \
+  --max=MAX_INSTANCES \
+  --concurrency=CONCURRENCY
+
+gcloud run services update-traffic FUNCTION_NAME \
+  --region=REGION \
+  --to-revisions=NEW_REVISION=10,STABLE_REVISION=90
+
+gcloud logging read \
+  'resource.type="cloud_run_revision" AND resource.labels.service_name="FUNCTION_NAME"' \
+  --limit=50 \
+  --format=json
+```
+
+各 Scaling flag 是否支援於當前 gcloud 版本及部署模式，應以 `gcloud run services update --help` 與現行 Reference 確認；不要混用第一代 Cloud Functions Flags。
+
+## 8. Command Output
+
+未提供 Function best practices Lab／操作輸出。實作時應比較切流前後的 Revision Error rate、Latency、Instance count 與下游 Connection 數，而非只確認部署命令回傳成功。
+
+## 9. 認證考點
+
+- 啟用 Retry 前先確保 Idempotency。
+- 背景非同步工作必須在 Function Return 前完成。
+- Maximum instances 可保護 Cloud SQL／Memorystore；不是單純效能越高越好。
+- Minimum instances 改善 Cold start，但不是免費。
+- Traffic split 搭配 Monitoring 才能安全 Canary。
+- Local filesystem 與 Instance Memory 不是 Durable storage。
+
+## 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Implementation、Performance／Networking、Retry、Configuration、Scaling、Traffic split | Module 6 |
+| 現行官方文件 | Function 應具冪等性並在 Return 前完成背景工作 | [Functions best practices](https://cloud.google.com/run/docs/tips/functions-best-practices)、[Write functions](https://cloud.google.com/run/docs/write-functions) |
+| 備考建議 | 以「正確性 → 下游保護 → 效能 → 成本」順序回答最佳實務題 | 推論，非考綱原文 |
+
+## 11. 本章快速複習
+
+- Stateless、Idempotent、Return 前完成工作。
+- Retry 只處理暫時性錯誤並使用 Backoff。
+- Min 降 Cold start；Max 保護成本與下游；Concurrency 控制每 Instance 負載。
+- Canary 必須監控再逐步切流。
+
+# Chapter 7 — Course Review
+中文名稱：課程總複習
+
+## 1. Learning Objectives
+
+- 串聯 Function 開發、Trigger、IAM、VPC、Database 與維運。
+- 用一致流程回答 ACE 部署與故障排除題。
+
+## 2. 核心概念摘要
+
+完整路徑：選 Function 類型 → 寫 Entry point／測試 → 選 Region → 指派 Runtime identity → 從 Source 部署 → 設定 HTTP／Eventarc Trigger → 設定 VPC／Database → 設定 Scaling／Retry → 監控 → Traffic migration。
+
+## 3. 詳細知識點
+
+### 3.1 ACE 故障排除順序
+
+| 步驟 | 檢查項目 | 常見症狀 |
+|---:|---|---|
+| 1 | Project、Region、Function／Service 名稱 | CLI 找不到資源 |
+| 2 | Build Log、Runtime、Entry point、Dependencies | Build failed、Container startup failed |
+| 3 | Revision Ready 與 Traffic | 已部署但無流量 |
+| 4 | Trigger、Event filters、Location | Event 沒有觸發 Function |
+| 5 | Caller／Trigger Invoker 與 ID token | `401`／`403` |
+| 6 | Runtime identity 與資料 IAM | `PERMISSION_DENIED` |
+| 7 | VPC Egress、Firewall、DNS | Private IP 連線逾時 |
+| 8 | Scaling、Concurrency、Timeout、Retry | `429`、延遲、重複副作用 |
+| 9 | Logs、Metrics、Audit Logs | 確認實際失敗層次與變更人員 |
+
+## 7. Cloud Shell / gcloud
+
+```bash
+gcloud config list
+gcloud run services list --region=REGION
+gcloud run revisions list --service=FUNCTION_NAME --region=REGION
+gcloud eventarc triggers list --location=TRIGGER_LOCATION
+gcloud run services get-iam-policy FUNCTION_NAME --region=REGION
+```
+
+先檢查 Scope、Revision、Trigger 與 IAM，再重新部署，避免掩蓋根因。
+
+## 9. 認證考點
+
+- Function 沒被觸發：先查 Event type／Filter／Location／Trigger identity。
+- Function 被觸發但資料存取失敗：查 Runtime Service Account。
+- HTTP 呼叫失敗：查 Caller ID token、Audience、Invoker、Ingress。
+- 重複資料：查 Event delivery、Retry 與 Idempotency，而不是只關閉 Retry。
+
+## 11. 本章快速複習
+
+- Build → Revision → Trigger → Identity → Network → Data → Scaling → Observability。
+- 每個階段都有不同 Service Account，不能用一個 Role 解全部問題。
+
+# 認證重點統整
+
+## ACE 重點
+
+### 一句話必背
+
+1. HTTP Function 接 Request；Event-driven Function 接 CloudEvent。
+2. Function source 透過 Buildpacks／Cloud Build 建置，Artifact Registry 儲存 Image，Cloud Run 執行 Revision。
+3. 私有 Function Caller 需要 ID token 與 Cloud Run Invoker。
+4. Eventarc Trigger identity 負責呼叫 Function；Runtime identity 負責呼叫資料服務。
+5. Workflows 以 OIDC 呼叫私有 Function。
+6. Direct VPC egress／Connector 處理 Function 到 VPC 的 Outbound traffic。
+7. Event handler 必須 Idempotent，才能安全 Retry。
+8. Min instances 降 Cold start；Max instances 保護成本及下游；Concurrency 控制每個 Instance 的並行量。
+
+### Resource Scope 速查
+
+| Resource | Scope | 記憶方式 |
+|---|---|---|
+| Cloud Run Function／Service | Regional | 部署必選 Region |
+| Revision | Regional／Service child | 不可變版本 |
+| Eventarc Trigger | Location-specific | 與 Event source／Destination 相容 |
+| VPC Network | Global | Network 全球、Subnet 區域 |
+| Subnet | Regional | VPC Egress 使用區域 Subnet |
+| VPC Access connector | Regional | 與 Function Region 相容且有成本 |
+| Firestore | Regional／Multi-regional | Event Location 需相容 |
+| Memorystore | Regional | Private IP + VPC Egress |
+| BigQuery Dataset／Connection | Regional／Multi-regional | Remote Function 有 Location 規則 |
+
+## 服務選型與比較
+
+| 情境 | 建議服務 | 判斷理由 | 常見誤解 |
+|---|---|---|---|
+| 單一目的 HTTP／事件程式 | Cloud Run functions | FaaS、Source／Entry point／Trigger 模型 | 不需自行設計完整 Container Server |
+| 完整無狀態 Container Web Service | Cloud Run | 自行控制 Container 與完整 Service | 不代表一定要用 Function |
+| Kubernetes API、Node 與叢集控制 | GKE | Kubernetes 編排 | Cloud Run functions 不提供 Node 控制 |
+| 完整 VM／OS 控制 | Compute Engine | 最完整基礎設施控制 | 維運責任最高 |
+| 多步驟服務協調 | Workflows | State、Retry、Branch 與 OIDC 呼叫 | 不應把長流程全塞進單一 Function |
+| Google Cloud 事件路由 | Eventarc | Filter Event 並送到 Destination | Eventarc 不執行商業邏輯 |
+| Private in-memory store | Memorystore | Redis／Valkey 等低延遲資料 | Function 需 VPC Egress |
+| 文件型 Serverless database | Firestore | Document model、事件整合 | 不適合所有關聯式需求 |
+
+## 常見陷阱
+
+- 把 `roles/cloudfunctions.invoker` 當成現行所有 Cloud Run Function 的答案；應確認底層管理介面，現行路徑通常使用 `roles/run.invoker`。
+- 把 Eventarc Trigger Service Account 當成 Function Runtime Service Account。
+- 以 VPC Connector 解決 Ingress 問題；Connector／Direct VPC egress 是 Outbound。
+- 開啟 Retry 卻未實作 Idempotency。
+- 在 Function Return 後繼續背景 Thread／Promise。
+- 把 Secret 寫入一般 Environment variable 或 Source repository。
+- 忽略 Function、Trigger、Data service、BigQuery Connection 的 Location。
+- 只增加 Maximum instances，導致下游 Database Connection 耗盡。
+
+## 指令速查
+
+```bash
+# 現行 Cloud Run Function Source deployment
+gcloud run deploy FUNCTION_NAME \
+  --source=. \
+  --function=FUNCTION_ENTRYPOINT \
+  --base-image=BASE_IMAGE \
+  --region=REGION
+
+# 查看 Function Service 與 Revision
+gcloud run services describe FUNCTION_NAME --region=REGION
+gcloud run revisions list --service=FUNCTION_NAME --region=REGION
+
+# 查看 Eventarc Trigger
+gcloud eventarc triggers list --location=TRIGGER_LOCATION
+
+# 查看 Invoker Policy
+gcloud run services get-iam-policy FUNCTION_NAME --region=REGION
+
+# 查詢 Logs
+gcloud logging read \
+  'resource.type="cloud_run_revision" AND resource.labels.service_name="FUNCTION_NAME"' \
+  --limit=50
+```
+
+## 考前自我檢查
+
+- [ ] 能區分 HTTP Function 與 CloudEvent Function。
+- [ ] 能說明 Entry point、Runtime、Service、Revision、Trigger。
+- [ ] 能描述 Source deployment 的 Build／Registry／Run 流程。
+- [ ] 能部署 Function 並查詢 Revision 與 Traffic。
+- [ ] 能區分 Deployer、Build、Trigger、Caller、Runtime identity。
+- [ ] 能說明 Workflows + OIDC + Cloud Run Invoker。
+- [ ] 能區分 Ingress 與 VPC Egress。
+- [ ] 能解釋 Firestore Event 與 Memorystore Private IP 連線。
+- [ ] 能說明 Retry、Idempotency 與 Dead-letter 思維。
+- [ ] 能以 Logs、Metrics、Audit Logs 排查問題。
+
+## 待補材料與限制
+
+- 公開頁面可取得七個 Module、Lesson 名稱與 Lab 目標，但未取得完整登入後影片逐字稿。
+- 未提供三個 Lab（Develop and Deploy、Connect、Integrate with Firestore）的 Cloud Shell 實際操作紀錄，因此沒有虛構「我的實際操作」與 Terminal Output。
+- Quiz 題目不可存取，本文未猜測題目或答案。
+- 課程 Lab 可能保留 `gcloud functions deploy --gen2` 與 Serverless VPC Access connector；本文已分開標示 2026-08-23 的現行 Cloud Run 原生部署與 Direct VPC egress 建議。
+- Runtime 版本、Base image、Console 標籤、Scaling Flags 與 Event types 會更新；考前應再次查閱官方文件。
+
+## 官方參考資料
+
+- [Google Skills 課程頁面](https://www.skills.google/paths/11/course_templates/505)
+- [Associate Cloud Engineer Exam Guide](https://cloud.google.com/learn/certification/guides/cloud-engineer)
+- [Write Cloud Run functions](https://cloud.google.com/run/docs/write-functions)
+- [Deploy a Cloud Run function](https://cloud.google.com/run/docs/deploy-functions)
+- [Authenticate for invocation](https://cloud.google.com/functions/docs/securing/authenticating)
+- [Invoke Cloud Run functions from Workflows](https://cloud.google.com/workflows/docs/calling-run-functions)
+- [Direct VPC egress and VPC connectors](https://cloud.google.com/run/docs/configuring/connecting-vpc)
+- [Trigger functions with Firestore documents](https://cloud.google.com/run/docs/triggering/trigger-functions-with-firestore-documents)
+- [Functions best practices](https://cloud.google.com/run/docs/tips/functions-best-practices)
+- [BigQuery Remote Functions](https://cloud.google.com/bigquery/docs/remote-functions)

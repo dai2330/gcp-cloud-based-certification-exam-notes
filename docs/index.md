@@ -67,6 +67,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Developing Applications with Cloud Run Functions on Google Cloud](courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -150,6 +159,22 @@ hide:
 - **包含：** gcloud、IAM、4 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · CLOUD RUN FUNCTIONS</span>
+
+### Developing Applications with Cloud Run Functions on Google Cloud
+
+涵蓋 FaaS、HTTP 與事件驅動函式、Eventarc、IAM、安全連線、資料庫整合、冪等與維運最佳實務。
+
+- **7 個 Chapter**
+- **文件校正：2026-08-23**
+- **包含：** gcloud、Eventarc、IAM、6 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md)
 
 </article>
 

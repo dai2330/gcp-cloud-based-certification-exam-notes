@@ -39,6 +39,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Cloud Run Fundamentals](../courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md){ .md-button .md-button--primary }
 
+### 6. Developing Applications with Cloud Run Functions on Google Cloud
+
+接續 Cloud Run Fundamentals，掌握 HTTP 與事件驅動函式、Eventarc、Function identity、IAM、資料服務整合及可靠性最佳實務。
+
+[開始閱讀 Cloud Run Functions](../courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。
