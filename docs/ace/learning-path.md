@@ -33,6 +33,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 GKE](../courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md){ .md-button .md-button--primary }
 
+### 5. Developing Applications with Cloud Run on Google Cloud: Fundamentals
+
+掌握 Cloud Run service、revision、container runtime contract、autoscaling、service identity、IAM，以及部署與流量管理。
+
+[開始閱讀 Cloud Run Fundamentals](../courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

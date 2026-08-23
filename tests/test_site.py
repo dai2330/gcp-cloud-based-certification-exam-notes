@@ -14,6 +14,8 @@ SCALING_AUTOMATION_COURSE = ROOT / "docs/courses/ace/elastic-google-cloud-infras
 SCALING_AUTOMATION_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Elastic_Google_Cloud_Infrastructure_Scaling_and_Automation.source.txt"
 GKE_COURSE = ROOT / "docs/courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md"
 GKE_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Getting_Started_with_Google_Kubernetes_Engine.source.txt"
+CLOUD_RUN_COURSE = ROOT / "docs/courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md"
+CLOUD_RUN_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Developing_Applications_with_Cloud_Run_on_Google_Cloud_Fundamentals.source.txt"
 
 
 def read(relative: str) -> str:
@@ -279,6 +281,76 @@ class GkeGettingStartedCourseTests(unittest.TestCase):
         self.assertIn("Google Kubernetes Engine:", config)
         self.assertIn(f"Getting Started: {course_path}", config)
         self.assertLess(config.index("Elastic Google Cloud Infrastructure:"), config.index("Google Kubernetes Engine:"))
+        self.assertIn(course_path, homepage)
+        self.assertIn(f"../{course_path}", learning_path)
+
+
+class CloudRunFundamentalsCourseTests(unittest.TestCase):
+    def test_cloud_run_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(CLOUD_RUN_COURSE.is_file())
+
+    def test_cloud_run_has_one_page_h1_five_chapters_and_diagrams(self) -> None:
+        content = CLOUD_RUN_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        chapter_h2s = [line for line in outside_fence_lines if re.match(r"^## Chapter [1-5] — .+$", line)]
+        self.assertEqual(h1s, ["# Developing Applications with Cloud Run on Google Cloud: Fundamentals"])
+        self.assertEqual(len(chapter_h2s), 5)
+        self.assertGreaterEqual(content.count("```mermaid"), 4)
+        self.assertRegex(content, r"```bash\n# 部署\n")
+
+    def test_cloud_run_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = CLOUD_RUN_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = CLOUD_RUN_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 691)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_cloud_run_is_linked_from_all_discovery_surfaces(self) -> None:
+        course_path = (
+            "courses/ace/developing-applications-with-cloud-run/"
+            "developing-applications-with-cloud-run-fundamentals.md"
+        )
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Developing Applications with Cloud Run on Google Cloud:", config)
+        self.assertIn(f"Fundamentals: {course_path}", config)
+        self.assertLess(
+            config.index("Google Kubernetes Engine:"),
+            config.index("Developing Applications with Cloud Run on Google Cloud:"),
+        )
         self.assertIn(course_path, homepage)
         self.assertIn(f"../{course_path}", learning_path)
 

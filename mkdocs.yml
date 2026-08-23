@@ -58,6 +58,8 @@ nav:
               - Scaling and Automation: courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md
           - Google Kubernetes Engine:
               - Getting Started: courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md
+          - Developing Applications with Cloud Run on Google Cloud:
+              - Fundamentals: courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md
 
 plugins:
   - search:

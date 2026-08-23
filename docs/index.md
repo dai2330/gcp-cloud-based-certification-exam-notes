@@ -58,6 +58,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Developing Applications with Cloud Run on Google Cloud: Fundamentals](courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -125,6 +134,22 @@ hide:
 - **包含：** Cloud Shell、kubectl、2 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · CLOUD RUN</span>
+
+### Developing Applications with Cloud Run on Google Cloud: Fundamentals
+
+涵蓋 Cloud Run resource model、revision、autoscaling、service identity、authentication、建置部署與流量切分。
+
+- **5 個 Chapter**
+- **文件校正：2026-08-23**
+- **包含：** gcloud、IAM、4 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md)
 
 </article>
 
