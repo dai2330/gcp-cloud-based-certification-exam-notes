@@ -12,6 +12,8 @@ CORE_SERVICES_COURSE = ROOT / "docs/courses/ace/essential-google-cloud-infrastru
 CORE_SERVICES_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Essential_Google_Cloud_Infrastructure_Core_Services.source.txt"
 SCALING_AUTOMATION_COURSE = ROOT / "docs/courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md"
 SCALING_AUTOMATION_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Elastic_Google_Cloud_Infrastructure_Scaling_and_Automation.source.txt"
+GKE_COURSE = ROOT / "docs/courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md"
+GKE_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Getting_Started_with_Google_Kubernetes_Engine.source.txt"
 
 
 def read(relative: str) -> str:
@@ -213,6 +215,70 @@ class ScalingAndAutomationCourseTests(unittest.TestCase):
             config.index("Essential Google Cloud Infrastructure:"),
             config.index("Elastic Google Cloud Infrastructure:"),
         )
+        self.assertIn(course_path, homepage)
+        self.assertIn(f"../{course_path}", learning_path)
+
+
+class GkeGettingStartedCourseTests(unittest.TestCase):
+    def test_gke_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(GKE_COURSE.is_file())
+
+    def test_gke_has_one_page_h1_six_chapters_and_diagrams(self) -> None:
+        content = GKE_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        chapter_h2s = [line for line in outside_fence_lines if re.match(r"^## Chapter [1-6] — .+$", line)]
+        self.assertEqual(h1s, ["# Getting Started with Google Kubernetes Engine"])
+        self.assertEqual(len(chapter_h2s), 6)
+        self.assertGreaterEqual(content.count("```mermaid"), 2)
+        self.assertRegex(content, r"```bash\n# 啟用必要 API\n")
+
+    def test_gke_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = GKE_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = GKE_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 392)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_gke_is_linked_from_all_discovery_surfaces(self) -> None:
+        course_path = "courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md"
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Google Kubernetes Engine:", config)
+        self.assertIn(f"Getting Started: {course_path}", config)
+        self.assertLess(config.index("Elastic Google Cloud Infrastructure:"), config.index("Google Kubernetes Engine:"))
         self.assertIn(course_path, homepage)
         self.assertIn(f"../{course_path}", learning_path)
 

@@ -56,6 +56,8 @@ nav:
               - Core Services: courses/ace/essential-google-cloud-infrastructure/essential-google-cloud-infrastructure-core-services.md
           - Elastic Google Cloud Infrastructure:
               - Scaling and Automation: courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md
+          - Google Kubernetes Engine:
+              - Getting Started: courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md
 
 plugins:
   - search:

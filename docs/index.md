@@ -49,6 +49,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Getting Started with Google Kubernetes Engine](courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -100,6 +109,22 @@ hide:
 - **包含：** Cloud Shell、Terraform、5 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · GKE</span>
+
+### Getting Started with Google Kubernetes Engine
+
+涵蓋 container image、Kubernetes 架構、GKE Autopilot 與 Standard、`kubectl` 操作、擴縮、更新及故障排除。
+
+- **6 個 Chapter**
+- **整理日期：2026-08-23**
+- **包含：** Cloud Shell、kubectl、2 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md)
 
 </article>
 

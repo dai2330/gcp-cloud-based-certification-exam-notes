@@ -1,0 +1,392 @@
+# Getting Started with Google Kubernetes Engine — ACE 考證筆記
+
+> 課程：Google Skills「Getting Started with Google Kubernetes Engine」
+> 課程連結：https://www.skills.google/paths/11/course_templates/2
+> 適用證照：Associate Cloud Engineer（ACE）
+> 整理日期：2026-08-23
+> 說明：依公開課程綱要整理；無法取得的影片逐字稿與實驗實際輸出不臆造。操作與產品狀態以現行官方文件校正。
+
+## 課程定位與 ACE 關聯
+
+本課程共六個模組，主軸是「容器映像檔 → Kubernetes 架構 → GKE 叢集 → kubectl 操作與診斷」。Introduction to Google Cloud 與前述基礎課程重疊，因此本筆記壓縮處理，把篇幅放在 ACE 更可能考的服務選擇、叢集模式、物件關係、操作流程與故障排除。
+
+| 模組 | 課程內容 | ACE 準備優先度 |
+|---|---|---:|
+| 1 | Course Introduction | 低 |
+| 2 | Introduction to Google Cloud | 中（快速複習） |
+| 3 | Introduction to Containers and Kubernetes | 高 |
+| 4 | Kubernetes Architecture | 很高 |
+| 5 | Kubernetes Operations | 很高 |
+| 6 | Course Summary | 中 |
+
+# Chapter 1 — Course Introduction
+## 課程介紹
+
+## 1. Learning Objectives
+
+- 理解課程從容器化到 GKE 操作的學習路徑。
+- 建立 ACE 題目的判斷順序：先選服務，再判斷資源範圍與管理責任，最後選操作工具。
+
+## 2. 核心概念摘要
+
+GKE 是 Google Cloud 的受管 Kubernetes 服務。ACE 不只會問名詞，也會用情境測試：應不應該使用 GKE、選 Autopilot 還是 Standard、如何部署工作負載、如何用 Console／`gcloud`／`kubectl` 檢查問題。
+
+## 3. 認證考點
+
+- `gcloud` 管理 Google Cloud 資源與 GKE 叢集；`kubectl` 管理 Kubernetes API 物件。
+- 遇到「最低維運負擔」通常優先考慮受管程度較高的方案，但仍要先確認工作負載是否需要 Kubernetes API、特殊節點或高權限能力。
+
+# Chapter 2 — Introduction to Google Cloud
+## Google Cloud 快速複習
+
+## 1. Learning Objectives
+
+- 辨認 Google Cloud 資源階層、位置範圍及互動工具。
+- 在 Compute Engine、GKE、Cloud Run 等運算服務間做基本選擇。
+
+## 2. 核心概念摘要
+
+| 需求 | 通常優先考慮 | 關鍵理由 |
+|---|---|---|
+| 完整 VM／OS 控制 | Compute Engine | 可控制作業系統與機器設定 |
+| 需要 Kubernetes API、生態系或多容器編排 | GKE | 受管 Kubernetes |
+| 無伺服器容器、以服務／請求為核心 | Cloud Run | 不管理叢集與節點 |
+| 事件驅動的小型函式 | Cloud Run functions | 函式式部署與事件整合 |
+
+資源階層為 Organization → Folder → Project → Resource。政策可向下繼承；Project 是許多 API、計費、IAM 與配額管理的重要邊界。
+
+## 3. Resource Scope
+
+| 資源 | 常見範圍 | ACE 提醒 |
+|---|---|---|
+| Project | Global 邏輯容器 | API、IAM、配額與計費常以 Project 為核心 |
+| VPC network | Global | Subnet 才是 Regional |
+| Subnet | Regional | 可跨同區域多個 Zone 使用 |
+| GKE cluster | Zonal 或 Regional | Regional 提高控制層可用性；成本與節點配置要一起判斷 |
+| Artifact Registry repository | 指定 Location | 映像位置應考慮延遲、合規與資料傳輸 |
+
+## 4. Console / Cloud Shell
+
+- Console 適合探索資源、視覺化狀態與執行少量操作。
+- Cloud Shell 預先提供常用 CLI，並以目前登入身分取得授權；仍須確認目前 Project、Region／Zone 與帳號。
+
+```bash
+gcloud auth list
+gcloud config list
+gcloud config set project PROJECT_ID
+gcloud services list --enabled
+```
+
+## 5. ACE 常見陷阱
+
+- 把 VPC 誤認為 Regional。
+- 只看到「容器」就選 GKE；若不需要 Kubernetes 控制面，Cloud Run 往往更省維運。
+- 忽略指令中的 Project、Region、Zone，導致查錯資源或建立到錯誤位置。
+
+# Chapter 3 — Introduction to Containers and Kubernetes
+## 容器、映像檔與 Kubernetes
+
+## 1. Learning Objectives
+
+- 說明 Container 與 VM 的隔離及管理差異。
+- 建置映像檔並存入 Artifact Registry。
+- 解釋 Kubernetes 與 GKE 解決的問題。
+
+## 2. 核心概念摘要
+
+Container 將應用程式、相依套件與執行設定封裝成映像檔；多個容器通常共享主機核心，因此比各自包含完整 Guest OS 的 VM 輕量。映像檔是唯讀分層範本，執行中的 Container 是其執行個體。
+
+Kubernetes 以宣告式模型維持「期望狀態」：使用者提交物件規格，控制器持續比較期望狀態與觀察狀態並進行調和。GKE 則代管 Kubernetes 控制層，並依模式分攤更多基礎架構工作。
+
+## 3. 映像檔流程
+
+```mermaid
+flowchart TD
+  A["Source + Dockerfile"] --> B["Cloud Build"]
+  B --> C["Artifact Registry image"]
+  C --> D["GKE pulls image"]
+  D --> E["Pod runs container"]
+```
+
+建議以不可變版本或 digest 部署，避免同一 Tag 指向不同內容造成難以重現。正式環境也應掃描漏洞、最小化基底映像及限制映像來源。
+
+## 4. 實作命令
+
+```bash
+# 啟用必要 API
+gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com container.googleapis.com
+
+# 建立 Docker repository
+gcloud artifacts repositories create REPOSITORY \
+  --repository-format=docker \
+  --location=REGION
+
+# 由目前目錄建置並推送映像
+gcloud builds submit \
+  --tag REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/APP:TAG .
+
+# 查看映像
+gcloud artifacts docker images list \
+  REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY
+```
+
+## 5. Command Output
+
+本課程實驗的實際輸出未提供，因此不虛構成功訊息。考試與實務上應檢查：Build 是否成功、映像 URI 是否完整、Repository Location 是否正確，以及執行 GKE 節點／工作負載所使用的身分是否具有拉取映像權限。
+
+## 6. 認證考點
+
+- 現行建議使用 Artifact Registry；舊教材若出現 Container Registry／`gcr.io`，要理解其歷史脈絡，不要將它當成新建專案的首選。
+- Cloud Build 是建置服務；Artifact Registry 是成品儲存庫；GKE 是執行與編排平台，三者角色不可混淆。
+- `latest` 並不代表可追溯版本。部署與回滾題目通常偏好明確 Tag 或 digest。
+
+# Chapter 4 — Kubernetes Architecture
+## Kubernetes 與 GKE 架構
+
+## 1. Learning Objectives
+
+- 辨認 Control Plane、Node 與核心元件職責。
+- 比較 GKE Autopilot 與 Standard。
+- 理解 Kubernetes 物件與宣告式管理。
+
+## 2. GKE 架構
+
+```mermaid
+flowchart TD
+  U["Console / kubectl / API"] --> C["GKE control plane"]
+  C --> N1["Node / kubelet"]
+  C --> N2["Node / kubelet"]
+  N1 --> P1["Pods"]
+  N2 --> P2["Pods"]
+```
+
+- API server：Kubernetes API 的入口，驗證並處理請求。
+- Scheduler：替尚未排程的 Pod 選擇合適 Node。
+- Controllers：持續調和期望狀態與實際狀態。
+- Cluster state store：保存 API 物件狀態；在 GKE 中由 Google 管理後端實作。
+- kubelet：每個 Node 上的代理，確保指定 Pod／Container 正常執行。
+
+## 3. Autopilot vs Standard
+
+| 面向 | Autopilot | Standard |
+|---|---|---|
+| 基礎架構管理 | Google 管理控制層、Node 與系統元件 | Google 管理控制層；使用者管理 Node／Node pool |
+| 容量規劃 | 以工作負載要求為中心，GKE 自動配置 | 使用者規劃 Node 類型、數量與擴縮 |
+| 彈性 | 套用較多最佳實務與限制 | 可精細控制節點及特殊設定 |
+| 適合 | 多數一般生產工作負載、降低維運 | 特殊硬體、特殊權限、細緻節點控制 |
+
+現行 GKE 也能在 Standard 叢集中執行 Autopilot 工作負載；ACE 基礎判斷仍以「誰管理節點、需要多少控制」為核心，題目若提到新能力則依當下敘述判斷。
+
+## 4. Kubernetes 常見物件
+
+| 物件 | 用途 | 範圍／考點 |
+|---|---|---|
+| Pod | 最小可部署單位；共享網路與 Volume | Namespaced；短暫，通常不直接裸建 |
+| Deployment | 管理無狀態 Pod 副本與滾動更新 | Namespaced；透過 selector 管理 Pod |
+| Service | 為一組 Pod 提供穩定存取端點 | Namespaced；依 labels/selectors 選後端 |
+| ConfigMap | 非敏感設定 | Namespaced；不適合秘密 |
+| Secret | 敏感資料的 Kubernetes 物件 | Namespaced；仍須配置存取與加密策略 |
+| Namespace | 叢集內邏輯隔離與名稱範圍 | 不是 Google Cloud Region／Zone |
+| Node | 執行 Pod 的工作機器 | Cluster-scoped |
+
+### 物件 YAML 骨架
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: web
+        image: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/APP:TAG
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+```
+
+`apiVersion`、`kind`、`metadata`、`spec` 是常見必要骨架；`status` 通常由系統回報。Deployment 的 selector 必須與 Pod template labels 對得上。
+
+## 5. IAM 與 Kubernetes 授權
+
+- IAM：控制 Google Cloud 資源與 GKE API 的存取、誰能取得叢集憑證等。
+- Kubernetes RBAC：控制已通過驗證的主體可對叢集內哪些 API 物件執行哪些動作。
+- 工作負載存取 Google Cloud API 時，優先採用 Workload Identity Federation for GKE，避免散發長期 Service Account 金鑰。
+
+## 6. ACE 常見陷阱
+
+- 認為 GKE Standard 的控制層要自行安裝維護；實際上控制層仍由 GKE 管理。
+- 將 Pod 當作長期固定主機；Pod 可被重建，持久資料須使用合適儲存設計。
+- Service selector 與 Pod label 不匹配，導致 Service 沒有後端 Endpoint。
+- 只設定 `limits` 或完全不設資源需求，造成排程、擴縮或 Autopilot 資源行為不符預期。
+
+# Chapter 5 — Kubernetes Operations
+## 建立、部署、觀察與故障排除
+
+## 1. Learning Objectives
+
+- 建立 GKE Autopilot 叢集並取得憑證。
+- 使用 `kubectl` 建立、查詢與診斷 Kubernetes 物件。
+- 用系統化順序定位部署問題。
+
+## 2. 建立與連線
+
+```bash
+gcloud container clusters create-auto CLUSTER_NAME \
+  --region=REGION \
+  --project=PROJECT_ID
+
+gcloud container clusters get-credentials CLUSTER_NAME \
+  --region=REGION \
+  --project=PROJECT_ID
+
+kubectl config current-context
+kubectl cluster-info
+```
+
+`get-credentials` 會更新 kubeconfig context。若同時操作多個叢集，執行任何變更前都要確認目前 context 與 namespace。
+
+## 3. 部署與日常操作
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl get deployments,pods,services
+kubectl rollout status deployment/web
+kubectl describe deployment web
+kubectl logs deployment/web --all-pods=true
+kubectl get events --sort-by=.metadata.creationTimestamp
+kubectl delete -f deployment.yaml
+```
+
+`apply` 適合宣告式管理；`get` 看摘要；`describe` 看詳細狀態與 Events；`logs` 看應用程式輸出。診斷時不要只重複刪除 Pod，應先取得原因。
+
+## 4. 故障排除順序
+
+| 步驟 | 檢查 | 常見命令／訊號 |
+|---:|---|---|
+| 1 | Context、Project、Namespace | `kubectl config current-context`、`kubectl config view --minify` |
+| 2 | 物件摘要 | `kubectl get pods -o wide`、`kubectl get deploy,svc` |
+| 3 | Events 與條件 | `kubectl describe pod POD`、`kubectl get events` |
+| 4 | 應用程式日誌 | `kubectl logs POD`、多容器時加 `-c CONTAINER` |
+| 5 | 映像與設定 | `ImagePullBackOff`、Secret／ConfigMap、環境變數 |
+| 6 | 網路後端 | labels、Service selector、EndpointSlice、Port |
+| 7 | 容量與健康 | requests、排程條件、Node／配額、健康檢查 |
+| 8 | 權限與政策 | IAM、RBAC、Workload Identity、Network Policy／組織政策 |
+
+### 常見 Pod 狀態
+
+- `Pending`：無法排程、資源不足、Volume 或限制條件未滿足。
+- `ImagePullBackOff`／`ErrImagePull`：映像 URI、Tag、Repository 權限或網路問題。
+- `CrashLoopBackOff`：程序反覆退出；先看目前與前一次容器日誌。
+- `Running` 但未 Ready：Readiness probe 失敗，Service 不一定會導流。
+
+```bash
+kubectl logs POD --previous
+kubectl get endpointslices -l kubernetes.io/service-name=SERVICE_NAME
+kubectl auth can-i get pods --namespace=NAMESPACE
+```
+
+## 5. 擴縮與更新
+
+```bash
+kubectl scale deployment web --replicas=5
+kubectl set image deployment/web \
+  web=REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/APP:NEW_TAG
+kubectl rollout status deployment/web
+kubectl rollout undo deployment/web
+```
+
+ACE 需理解水平擴充工作負載副本與擴充 Node／Node pool 是不同層次。Autopilot 將更多底層容量處理交給 GKE；Standard 則仍需規劃節點池與 autoscaling。
+
+## 6. 實驗輸出限制
+
+未取得課程 Cloud Shell 實際執行記錄，因此本文只提供可重現命令與預期檢查點，不偽造 Cluster IP、Pod 名稱、Build ID 或成功輸出。
+
+# Chapter 6 — Course Summary
+## 課程總結
+
+## 1. 快速複習
+
+1. 原始碼與 Dockerfile 由 Cloud Build 建置。
+2. 映像檔存入 Artifact Registry。
+3. GKE 從 Registry 拉取映像並建立 Pod。
+4. Deployment 維持副本與更新；Service 提供穩定存取。
+5. GKE 管理控制層；Autopilot 進一步管理節點基礎架構。
+6. `gcloud` 管叢集與 Google Cloud；`kubectl` 管 Kubernetes 物件。
+7. 排錯先確認範圍與 context，再看 Events、Describe、Logs、網路後端、容量與權限。
+
+# ACE 認證重點統整
+
+## 必背服務選擇
+
+| 題目線索 | 優先答案 |
+|---|---|
+| 需要 Kubernetes API／生態系 | GKE |
+| 多數一般工作負載、最低節點維運 | GKE Autopilot |
+| 需要特殊節點、特權能力或精細基礎架構控制 | GKE Standard |
+| 只需部署無伺服器 HTTP／事件容器 | Cloud Run |
+| 建置容器映像 | Cloud Build |
+| 儲存與管理容器映像 | Artifact Registry |
+
+## Scope Cheat Sheet
+
+| 類型 | 例子 |
+|---|---|
+| Global／階層 | Organization、Folder、Project、VPC |
+| Regional | Subnet、Regional GKE cluster、指定 Region 的 Artifact Registry repository |
+| Zonal | Zonal GKE cluster、部分 Standard 節點資源 |
+| Cluster-scoped | Node、Namespace（Kubernetes API 範圍） |
+| Namespaced | Pod、Deployment、Service、ConfigMap、Secret |
+
+## ACE 情境題判斷法
+
+1. 先辨認需求是否真的需要 Kubernetes。
+2. 若需要 GKE，再判斷是否要直接控制 Node／Node pool。
+3. 判斷可用性與位置：Zonal 還是 Regional，網路與 Registry 是否同位置策略。
+4. 分清 Google Cloud IAM、Kubernetes RBAC 與工作負載身分。
+5. 操作題先確認 Project／Region／Cluster／Context／Namespace。
+6. 故障題從觀察資料下手，不先做破壞性重建。
+
+## 現行文件校正（相對於舊教材）
+
+- Artifact Registry 是新工作負載建議的映像與套件儲存服務；若課程使用 Container Registry，應轉換為 `LOCATION-docker.pkg.dev` 命名與 Artifact Registry 權限模型。
+- 現行 GKE 文件將 Autopilot 列為多數工作負載的建議模式，Standard 保留最大節點與基礎架構控制。
+- 現行 GKE 亦支援 Standard 叢集中的 Autopilot 工作負載；考試仍以題目需求與管理責任作答，不要死背二分法。
+- 版本、Release Channel、Autopilot 限制與預設值會持續變動；考前應再看官方考綱與 GKE Release Notes。
+
+## 考前實作清單
+
+- [ ] 能建立 Autopilot 叢集並用 `get-credentials` 連線。
+- [ ] 能讀懂 Deployment／Service YAML 與 labels/selectors。
+- [ ] 能從 Artifact Registry URI 判斷 Location、Project、Repository、Image、Tag。
+- [ ] 能使用 `get`、`describe`、`logs`、`events`、`rollout`。
+- [ ] 能區分 `Pending`、`ImagePullBackOff`、`CrashLoopBackOff`、Not Ready。
+- [ ] 能說明 Autopilot 與 Standard 的管理責任差異。
+- [ ] 能判斷 GKE、Cloud Run、Compute Engine 的適用情境。
+- [ ] 能區分 IAM、Kubernetes RBAC 與 Workload Identity Federation for GKE。
+
+## 官方參考資料
+
+- [課程頁面：Getting Started with Google Kubernetes Engine](https://www.skills.google/paths/11/course_templates/2)
+- [ACE 官方考試指南](https://cloud.google.com/learn/certification/guides/cloud-engineer)
+- [GKE 作業模式：Autopilot 與 Standard](https://cloud.google.com/kubernetes-engine/docs/concepts/choose-cluster-mode)
+- [GKE 叢集架構](https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-architecture)
+- [建立 Autopilot 叢集](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-an-autopilot-cluster)
+- [Artifact Registry：從 Container Registry 轉移](https://cloud.google.com/artifact-registry/docs/transition/transition-from-gcr)
+- [Cloud Build：建置容器映像](https://cloud.google.com/build/docs/building/build-containers)
+- [Kubernetes Objects](https://kubernetes.io/docs/concepts/overview/working-with-objects/)
+- [kubectl Cheat Sheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
+
+## 資料限制
+
+本筆記依公開課程名稱、模組綱要與 Google Cloud／Kubernetes 官方文件整理，並非影片逐字稿。課程內專屬題目、影片示範細節與 Lab 實際輸出若未公開，均未臆測補寫。

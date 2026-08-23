@@ -27,6 +27,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Scaling and Automation](../courses/ace/elastic-google-cloud-infrastructure/elastic-google-cloud-infrastructure-scaling-and-automation.md){ .md-button .md-button--primary }
 
+### 4. Getting Started with Google Kubernetes Engine
+
+從 container image 與 Kubernetes 物件開始，建立 GKE 叢集模式、`kubectl` 日常操作、擴縮、更新與故障排除的基礎。
+
+[開始閱讀 GKE](../courses/ace/google-kubernetes-engine/getting-started-with-google-kubernetes-engine.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。
