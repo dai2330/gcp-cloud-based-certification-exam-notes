@@ -63,6 +63,8 @@ nav:
               - Functions on Google Cloud: courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md
           - Google Cloud Databases:
               - Select a Database for Your Applications: courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md
+          - AI Infrastructure:
+              - Cloud GPUs: courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md
 
 plugins:
   - search:

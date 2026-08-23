@@ -51,6 +51,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Google Cloud Database Selection](../courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md){ .md-button .md-button--primary }
 
+### 8. AI Infrastructure: Cloud GPUs
+
+理解 GPU workload 的架構與選型，掌握 GPU machine type、Zone、Quota、Capacity、Spot VM、Reservation、driver 與成本取捨。
+
+[開始閱讀 Cloud GPUs](../courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

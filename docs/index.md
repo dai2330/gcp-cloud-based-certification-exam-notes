@@ -85,6 +85,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[AI Infrastructure: Cloud GPUs](courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -200,6 +209,22 @@ hide:
 - **包含：** 服務比較、gcloud、4 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · AI INFRASTRUCTURE</span>
+
+### AI Infrastructure: Cloud GPUs
+
+涵蓋 CPU／GPU／TPU 架構、GPU machine type、Zone、Quota、Capacity、Spot VM、Reservation、driver 與成本最佳化。
+
+- **3 個 Chapter**
+- **文件校正：2026-08-24**
+- **包含：** gcloud、GPU 選型、3 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md)
 
 </article>
 
