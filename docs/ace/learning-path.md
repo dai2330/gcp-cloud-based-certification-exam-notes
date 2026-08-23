@@ -45,6 +45,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Cloud Run Functions](../courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md){ .md-button .md-button--primary }
 
+### 7. Select a Google Cloud Database for Your Applications
+
+從 application requirement 推導資料庫選型，掌握 Cloud SQL、AlloyDB、Spanner、Firestore、Bigtable、Memorystore 與 Vector Search 的適用情境。
+
+[開始閱讀 Google Cloud Database Selection](../courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

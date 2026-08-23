@@ -18,6 +18,8 @@ CLOUD_RUN_COURSE = ROOT / "docs/courses/ace/developing-applications-with-cloud-r
 CLOUD_RUN_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Developing_Applications_with_Cloud_Run_on_Google_Cloud_Fundamentals.source.txt"
 CLOUD_RUN_FUNCTIONS_COURSE = ROOT / "docs/courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md"
 CLOUD_RUN_FUNCTIONS_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Developing_Applications_with_Cloud_Run_Functions_on_Google_Cloud.source.txt"
+DATABASE_SELECTION_COURSE = ROOT / "docs/courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md"
+DATABASE_SELECTION_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Select_a_Google_Cloud_Database_for_Your_Applications.source.txt"
 
 
 def read(relative: str) -> str:
@@ -427,6 +429,76 @@ class CloudRunFunctionsCourseTests(unittest.TestCase):
         self.assertLess(homepage.index(fundamentals_path), homepage.index(course_path))
         self.assertIn(f"../{course_path}", learning_path)
         self.assertLess(learning_path.index(f"../{fundamentals_path}"), learning_path.index(f"../{course_path}"))
+
+
+class DatabaseSelectionCourseTests(unittest.TestCase):
+    def test_database_selection_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(DATABASE_SELECTION_COURSE.is_file())
+
+    def test_database_selection_has_one_page_h1_four_chapters_and_diagrams(self) -> None:
+        content = DATABASE_SELECTION_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        chapter_h2s = [line for line in outside_fence_lines if re.match(r"^## Chapter [1-4] — .+$", line)]
+        self.assertEqual(h1s, ["# Select a Google Cloud Database for Your Applications"])
+        self.assertEqual(len(chapter_h2s), 4)
+        self.assertEqual(content.count("```mermaid"), 4)
+        self.assertRegex(content, r"```bash\n# 列出主要 Database 資源\n")
+
+    def test_database_selection_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = DATABASE_SELECTION_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = DATABASE_SELECTION_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 660)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_database_selection_is_linked_from_all_discovery_surfaces(self) -> None:
+        previous_path = (
+            "courses/ace/developing-applications-with-cloud-run/"
+            "developing-applications-with-cloud-run-functions-on-google-cloud.md"
+        )
+        course_path = "courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md"
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Google Cloud Databases:", config)
+        self.assertIn(f"Select a Database for Your Applications: {course_path}", config)
+        self.assertLess(config.index("Developing Applications with Cloud Run on Google Cloud:"), config.index("Google Cloud Databases:"))
+        self.assertIn(course_path, homepage)
+        self.assertLess(homepage.index(previous_path), homepage.index(course_path))
+        self.assertIn(f"../{course_path}", learning_path)
+        self.assertLess(learning_path.index(f"../{previous_path}"), learning_path.index(f"../{course_path}"))
 
 
 class PresentationTests(unittest.TestCase):

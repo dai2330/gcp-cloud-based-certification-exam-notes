@@ -61,6 +61,8 @@ nav:
           - Developing Applications with Cloud Run on Google Cloud:
               - Fundamentals: courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-fundamentals.md
               - Functions on Google Cloud: courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md
+          - Google Cloud Databases:
+              - Select a Database for Your Applications: courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md
 
 plugins:
   - search:

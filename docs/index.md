@@ -76,6 +76,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Select a Google Cloud Database for Your Applications](courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -175,6 +184,22 @@ hide:
 - **包含：** gcloud、Eventarc、IAM、6 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/developing-applications-with-cloud-run/developing-applications-with-cloud-run-functions-on-google-cloud.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · DATABASES</span>
+
+### Select a Google Cloud Database for Your Applications
+
+涵蓋 Cloud SQL、AlloyDB、Spanner、Firestore、Bigtable、Memorystore、選型框架與 Gen AI Vector Search。
+
+- **4 個 Chapter**
+- **文件校正：2026-08-24**
+- **包含：** 服務比較、gcloud、4 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md)
 
 </article>
 
