@@ -22,6 +22,8 @@ DATABASE_SELECTION_COURSE = ROOT / "docs/courses/ace/google-cloud-databases/sele
 DATABASE_SELECTION_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Select_a_Google_Cloud_Database_for_Your_Applications.source.txt"
 AI_INFRASTRUCTURE_CLOUD_GPUS_COURSE = ROOT / "docs/courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md"
 AI_INFRASTRUCTURE_CLOUD_GPUS_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_AI_Infrastructure_Cloud_GPUs.source.txt"
+AI_INFRASTRUCTURE_CLOUD_TPUS_COURSE = ROOT / "docs/courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md"
+AI_INFRASTRUCTURE_CLOUD_TPUS_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_AI_Infrastructure_Cloud_TPUs.source.txt"
 
 
 def read(relative: str) -> str:
@@ -564,6 +566,73 @@ class AiInfrastructureCloudGpusCourseTests(unittest.TestCase):
         self.assertIn("AI Infrastructure:", config)
         self.assertIn(f"Cloud GPUs: {course_path}", config)
         self.assertLess(config.index("Google Cloud Databases:"), config.index("AI Infrastructure:"))
+        self.assertIn(course_path, homepage)
+        self.assertLess(homepage.index(previous_path), homepage.index(course_path))
+        self.assertIn(f"../{course_path}", learning_path)
+        self.assertLess(learning_path.index(f"../{previous_path}"), learning_path.index(f"../{course_path}"))
+
+
+class AiInfrastructureCloudTpusCourseTests(unittest.TestCase):
+    def test_cloud_tpus_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(AI_INFRASTRUCTURE_CLOUD_TPUS_COURSE.is_file())
+
+    def test_cloud_tpus_has_one_page_h1_three_chapters_and_diagrams(self) -> None:
+        content = AI_INFRASTRUCTURE_CLOUD_TPUS_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        chapter_h2s = [line for line in outside_fence_lines if re.match(r"^## Chapter [1-3] — .+$", line)]
+        self.assertEqual(h1s, ["# AI Infrastructure: Cloud TPUs"])
+        self.assertEqual(len(chapter_h2s), 3)
+        self.assertEqual(content.count("```mermaid"), 4)
+        self.assertRegex(content, r"```bash\n# 列出 TPU VMs\n")
+
+    def test_cloud_tpus_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = AI_INFRASTRUCTURE_CLOUD_TPUS_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = AI_INFRASTRUCTURE_CLOUD_TPUS_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 585)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_cloud_tpus_is_linked_from_all_discovery_surfaces(self) -> None:
+        previous_path = "courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md"
+        course_path = "courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md"
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("AI Infrastructure:", config)
+        self.assertIn(f"Cloud TPUs: {course_path}", config)
+        self.assertLess(config.index(f"Cloud GPUs: {previous_path}"), config.index(f"Cloud TPUs: {course_path}"))
         self.assertIn(course_path, homepage)
         self.assertLess(homepage.index(previous_path), homepage.index(course_path))
         self.assertIn(f"../{course_path}", learning_path)

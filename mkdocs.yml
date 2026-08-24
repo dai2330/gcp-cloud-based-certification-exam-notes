@@ -65,6 +65,7 @@ nav:
               - Select a Database for Your Applications: courses/ace/google-cloud-databases/select-a-google-cloud-database-for-your-applications.md
           - AI Infrastructure:
               - Cloud GPUs: courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md
+              - Cloud TPUs: courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md
 
 plugins:
   - search:

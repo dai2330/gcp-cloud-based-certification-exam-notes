@@ -94,6 +94,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[AI Infrastructure: Cloud TPUs](courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -225,6 +234,22 @@ hide:
 - **包含：** gcloud、GPU 選型、3 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · AI INFRASTRUCTURE</span>
+
+### AI Infrastructure: Cloud TPUs
+
+涵蓋 TPU 架構、TPU VM、accelerator 選型、Zone、Quota、Queued Resources、Spot、效能最佳化與 GPU interoperability。
+
+- **3 個 Chapter**
+- **文件校正：2026-08-24**
+- **包含：** gcloud、TPU 選型、4 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md)
 
 </article>
 

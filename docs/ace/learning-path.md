@@ -57,6 +57,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Cloud GPUs](../courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md){ .md-button .md-button--primary }
 
+### 9. AI Infrastructure: Cloud TPUs
+
+掌握 Cloud TPU 產品定位、TPU VM、accelerator 選型、Zone、Quota、Queued Resources、Spot、效能最佳化與 GPU interoperability。
+
+[開始閱讀 Cloud TPUs](../courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。
