@@ -130,6 +130,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Implement Load Balancing on Compute Engine: Challenge Lab (GSP313)](courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -325,6 +334,22 @@ hide:
 - **包含：** Terraform CLI、HCL、Remote Backend、ACE 考點
 
 [進入課程 →](courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · CHALLENGE LAB</span>
+
+### Implement Load Balancing on Compute Engine: Challenge Lab (GSP313)
+
+實作三台 Web VM、regional passthrough Network Load Balancer，以及使用 instance template、MIG、health check 與 backend service 的 Application Load Balancer。
+
+- **13 個主題**
+- **文件校正：2026-08-25**
+- **包含：** gcloud、28 個 Bash 區塊、2 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md)
 
 </article>
 

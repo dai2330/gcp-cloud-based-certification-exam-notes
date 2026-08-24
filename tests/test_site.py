@@ -30,6 +30,8 @@ LOGGING_MONITORING_COURSE = ROOT / "docs/courses/ace/logging-and-monitoring-in-g
 LOGGING_MONITORING_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Logging_and_Monitoring_in_Google_Cloud.source.txt"
 TERRAFORM_COURSE = ROOT / "docs/courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md"
 TERRAFORM_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Getting_Started_with_Terraform_for_Google_Cloud.source.txt"
+GSP313_COURSE = ROOT / "docs/courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md"
+GSP313_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_GSP313_Implement_Load_Balancing_on_Compute_Engine_Challenge_Lab.source.txt"
 
 
 def read(relative: str) -> str:
@@ -843,6 +845,79 @@ class TerraformGettingStartedCourseTests(unittest.TestCase):
         self.assertIn("Getting Started with Terraform for Google Cloud:", config)
         self.assertIn(f"Course Notes: {course_path}", config)
         self.assertLess(config.index(previous_path), config.index("Getting Started with Terraform for Google Cloud:"))
+        self.assertIn(course_path, homepage)
+        self.assertLess(homepage.index(previous_path), homepage.index(course_path))
+        self.assertIn(f"../{course_path}", learning_path)
+        self.assertLess(learning_path.index(f"../{previous_path}"), learning_path.index(f"../{course_path}"))
+
+
+class Gsp313LoadBalancingChallengeLabTests(unittest.TestCase):
+    def test_gsp313_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(GSP313_COURSE.is_file())
+
+    def test_gsp313_has_one_h1_sections_diagrams_and_commands(self) -> None:
+        content = GSP313_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        numbered_h2s = [line for line in outside_fence_lines if re.match(r"^## (?:[1-9]|1[0-3])\. .+$", line)]
+        h3s = [line for line in outside_fence_lines if re.match(r"^### (?!#).+$", line)]
+        h4s = [line for line in outside_fence_lines if re.match(r"^#### (?!#).+$", line)]
+        self.assertEqual(h1s, ["# Implement Load Balancing on Compute Engine: Challenge Lab (GSP313)"])
+        self.assertEqual(len(numbered_h2s), 13)
+        self.assertIn("## 認證重點統整", outside_fence_lines)
+        self.assertEqual(len(h3s), 30)
+        self.assertEqual(len(h4s), 5)
+        self.assertEqual(content.count("```mermaid"), 2)
+        self.assertEqual(content.count("```bash"), 28)
+        self.assertEqual(content.count("```text"), 5)
+
+    def test_gsp313_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = GSP313_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = GSP313_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 762)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_gsp313_is_linked_from_all_discovery_surfaces(self) -> None:
+        previous_path = "courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md"
+        course_path = "courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md"
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Implement Load Balancing on Compute Engine:", config)
+        self.assertIn(f"Challenge Lab (GSP313): {course_path}", config)
+        self.assertLess(config.index(previous_path), config.index("Implement Load Balancing on Compute Engine:"))
         self.assertIn(course_path, homepage)
         self.assertLess(homepage.index(previous_path), homepage.index(course_path))
         self.assertIn(f"../{course_path}", learning_path)

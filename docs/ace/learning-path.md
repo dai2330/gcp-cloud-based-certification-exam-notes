@@ -81,6 +81,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Terraform for Google Cloud](../courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md){ .md-button .md-button--primary }
 
+### 13. Implement Load Balancing on Compute Engine: Challenge Lab (GSP313)
+
+實作三台 Web VM、regional passthrough Network Load Balancer，以及使用 instance template、MIG、health check 與 backend service 的 Application Load Balancer。
+
+[開始閱讀 GSP313 Challenge Lab](../courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

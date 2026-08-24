@@ -71,6 +71,8 @@ nav:
               - Course Notes: courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md
           - Getting Started with Terraform for Google Cloud:
               - Course Notes: courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md
+          - Implement Load Balancing on Compute Engine:
+              - Challenge Lab (GSP313): courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md
 
 plugins:
   - search:
