@@ -1,0 +1,776 @@
+# Logging and Monitoring in Google Cloud
+
+> Google Skills：https://www.skills.google/paths/11/course_templates/99<br>
+> 課程時間：約 8 小時 30 分鐘｜難度：Introductory｜目標：Associate Cloud Engineer（ACE）<br>
+> 公開課綱來源：[Coursera — Logging and Monitoring in Google Cloud](https://www.coursera.org/learn/logging-monitoring-observability-google-cloud)<br>
+> 現行文件核對日期：2026-08-24（Asia/Taipei）
+
+### 課程結構與整理範圍
+
+| Module | 課程名稱 | 本筆記處理方式 |
+|---|---|---|
+| 1 | Introduction to Google Cloud Observability | 完整整理 |
+| 2 | Monitoring Critical Systems | 完整整理，含多專案、dashboard、uptime check |
+| 3 | Alerting Policies | 完整整理，含 SLI／SLO／SLA 與 Service Monitoring |
+| 4 | Advanced Logging and Analysis | 完整整理，含 routing、sink、logs-based metrics、Log Analytics |
+| 5 | Working with Audit Logs | 完整整理四種 Cloud Audit Logs |
+| 6 | Course Summary | 併入「認證重點統整」 |
+| 7 | Course Resources | 併入「官方參考資料」 |
+
+課程另建議修習 Part 2「Observability in Google Cloud」，其 Error Reporting、Cloud Trace 與 Cloud Profiler 深度內容不在本課程主軸；本文只在產品全貌中簡要辨識，不展開成第二門課。
+
+課程公開頁提供 Modules 與 Labs 名稱，但未公開完整影片逐字稿和 Lab 指令。本文不還原看不到的步驟，也不虛構 Cloud Shell output 或「我的實際操作」。
+
+---
+
+## Chapter 1 — Introduction to Google Cloud Observability
+中文名稱：Google Cloud Observability 簡介
+
+### 1. Learning Objectives
+
+- 解釋 monitoring、logging 與 observability 的關係。
+- 辨識 Cloud Monitoring、Cloud Logging、Error Reporting、Cloud Trace、Cloud Profiler 的用途。
+- 理解 metrics、logs、traces 等 telemetry signal。
+- 建立「先觀察、再告警、最後處理」的維運思維。
+
+### 2. 核心概念摘要
+
+Monitoring 回答「系統現在是否健康」；Logging 保存離散事件與詳細上下文；Observability 則利用外部 telemetry 推斷系統內部狀態。Google Cloud Observability 是產品集合，不是單一服務。
+
+ACE 最常碰到的是 Cloud Monitoring 和 Cloud Logging。Monitoring 使用 time series、dashboard、uptime check 與 alerting policy；Logging 收集、查詢、儲存及路由 log entries。
+
+### 3. 詳細知識點
+
+#### 3.1 核心工具
+
+| 工具 | 資料／目的 | ACE 使用情境 |
+|---|---|---|
+| Cloud Monitoring | Metrics、time series、dashboard、alert | 監控 CPU、latency、errors、availability |
+| Cloud Logging | Log entries、query、routing、retention | 排錯、稽核、匯出、建立 logs-based metric |
+| Error Reporting | 聚合應用程式錯誤 | 認識定位；深度屬 Part 2 |
+| Cloud Trace | 分散式 request latency trace | 認識定位；深度屬 Part 2 |
+| Cloud Profiler | 持續分析 CPU／memory 使用 | 認識定位；深度屬 Part 2 |
+
+#### 3.2 Metrics 與 logs
+
+| 比較 | Metrics | Logs |
+|---|---|---|
+| 資料型態 | 隨時間變化的數值 time series | 帶 timestamp 的事件紀錄 |
+| 優點 | 聚合、趨勢、alert 成本較有效 | 上下文豐富，適合根因分析 |
+| 常見問題 | cardinality 過高 | volume、retention、敏感資料 |
+| 互相轉換 | 原生或 custom metric | 可建立 logs-based metric |
+
+#### 3.3 Monitored resource 與 time series
+
+Metric 描述量測項目，例如 CPU utilization；monitored resource 描述被觀測資源，例如 `gce_instance`。Time series 由 metric type、resource type 和 labels 的唯一組合形成。
+
+Label 很有用，但高 cardinality label 會產生大量 time series，增加查詢與成本負擔。不要把 request ID、user ID 等幾乎每筆都不同的值任意做成 metric label。
+
+#### 3.4 Ops Agent
+
+Compute Engine 平台會自動提供部分基礎 metrics／logs，但 guest OS 與 application telemetry 通常需要 Ops Agent。Ops Agent 結合 logging 與 metrics 收集能力，可設定 receivers、processors、export pipelines。
+
+現行官方文件：Ops Agent 可安裝在 Compute Engine VMs；不應在已有服務專用 Monitoring integration 的 managed-service VM 上任意手動安裝。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Monitoring configuration | Project／metrics scope | Scoping project 保存 dashboard、alerts、uptime checks 等設定 |
+| Log entry | Resource hierarchy origin | Log Router 依所在 project/folder/org 的 sinks 處理 |
+| Log bucket | Regional | 可指定 location 與 retention |
+| Ops Agent | Per VM | 在 guest OS 收集 logs 與 metrics |
+
+### 5. Architecture
+
+```mermaid
+flowchart TB
+  R["Cloud resources and apps"] --> T["Metrics and logs"]
+  T --> M["Cloud Monitoring"]
+  T --> L["Cloud Logging"]
+  M --> D["Dashboards and alerts"]
+  L --> Q["Query, route, analyze"]
+```
+
+### 6. Google Cloud Console
+
+- `Console > Monitoring > Overview`
+- `Console > Logging > Logs Explorer`
+- `Console > Compute Engine > VM instances > VM_NAME > Observability`
+
+### 7. Cloud Shell / gcloud
+
+```bash
+gcloud monitoring dashboards list
+gcloud logging logs list
+```
+
+- 第一個命令列出目前 project 的 dashboards。
+- 第二個命令列出可見 log names，而不是列出每筆 log entry。
+
+### 8. Command Output
+
+實際輸出依 project 的 telemetry 與 IAM 權限不同。本文未取得 Lab output，故不建立範例結果。
+
+### 9. 認證考點
+
+- Metrics 適合趨勢和告警；logs 適合事件細節和排錯。
+- Logs-based metric 把符合 filter 的 logs 轉成 Monitoring metric。
+- Ops Agent 收集 guest/application telemetry，不是 IAM agent。
+- Observability 是多種 signal 和工具的整體能力。
+
+### 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | 概覽 Logging、Monitoring、Error Reporting 與 APM tools | [Module 1](https://www.coursera.org/learn/logging-monitoring-observability-google-cloud) |
+| 現行官方文件 | Ops Agent 是 Compute Engine VM 的主要 telemetry agent | [Ops Agent](https://docs.cloud.google.com/stackdriver/docs/solutions/agents/ops-agent) |
+| 備考建議 | ACE 主攻 Logging、Monitoring 與基本 Ops Agent，APM 深度留待 Part 2 | 依課程與 ACE 維運範圍整理 |
+
+### 11. 本章快速複習
+
+1. Metrics 看趨勢，logs 看事件細節。
+2. Monitoring 管 dashboard、alert、uptime；Logging 管收集、查詢、儲存、routing。
+3. Ops Agent 補足 guest OS 與 application telemetry。
+4. Label cardinality 過高會造成大量 time series。
+
+---
+
+## Chapter 2 — Monitoring Critical Systems
+中文名稱：監控關鍵系統
+
+### 1. Learning Objectives
+
+- 設計單專案與多專案 Monitoring 架構。
+- 建立與解讀 dashboards、charts 和 metrics queries。
+- 建立 uptime checks 監測 availability 與 latency。
+- 理解 Monitoring IAM roles 與最小權限。
+
+### 2. 核心概念摘要
+
+Cloud Monitoring 以 metrics scope 決定可見哪些 projects 的 time-series data。Scoping project 保存 dashboard、alerting policy、uptime check、service 與 monitoring group 等設定；monitored projects 提供 metrics。
+
+多專案監控不代表把資源搬到同一專案，也不會把 IAM 自動合併。管理者要在 scoping project 和被加入 scope 的 projects 具備適當權限。
+
+### 3. 詳細知識點
+
+#### 3.1 Metrics scope
+
+- 每個 Google Cloud project 都有 metrics scope，也可作 scoping project。
+- Scoping project 可以觀察自身及加入 scope 的其他 projects。
+- Dashboard、alert、uptime checks 等 configuration 儲存在 scoping project。
+- 加入 metrics scope 不會複製或搬移原始 time-series data。
+- 一個 project 的 metrics 可被多個 scoping projects 觀察。
+
+#### 3.2 Dashboard
+
+| 類型 | 說明 |
+|---|---|
+| Predefined dashboard | Google Cloud 為特定服務自動提供 |
+| Custom dashboard | 使用者以 charts、tables、widgets 組合 |
+
+好 dashboard 應回答明確問題，例如 availability、latency、traffic、errors、saturation，而不是無目的堆滿圖表。
+
+#### 3.3 Metric query 元件
+
+- Resource type：監控對象，例如 VM、load balancer。
+- Metric type：量測內容，例如 utilization、request count。
+- Filter：選擇 labels 或資源。
+- Alignment：把單一 time series 的 raw points 對齊期間。
+- Reduction：跨多個 time series 聚合。
+- Group by：保留特定 labels 分組。
+
+常見錯誤是先跨 instance reduction，再想查看單一 instance；一旦資料先被聚合，個別差異就會消失。
+
+#### 3.4 Uptime check
+
+Uptime check 從 Google 管理的檢查位置探測公開 endpoint 或透過 private checkers 探測內部資源，用於 availability 和 latency 觀察。
+
+Uptime check 顯示失敗，不代表會自動通知；通常還要建立對應 alerting policy 並加入 notification channel。
+
+#### 3.5 Monitoring IAM
+
+常用 predefined roles：
+
+- Monitoring Viewer：唯讀 Monitoring data/config。
+- Monitoring Editor：建立或修改 Monitoring configuration。
+- Monitoring Admin：完整管理 Monitoring。
+- Monitoring Metric Writer：service account／agent 寫入 metrics。
+
+不要為了讓 agent 寫 metrics 就授予 Editor/Owner。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Metrics scope | Hosted by scoping project | 決定 Console 查詢可見的 monitored projects |
+| Dashboard | Scoping project | 不會自動出現在其他 scoping project |
+| Uptime check | Scoping project | 檢查設定與結果由該 Monitoring context 管理 |
+| Metric time series | Originating monitored resource/project | Scope 提供檢視，不等於搬移資料 |
+
+### 5. Architecture
+
+```mermaid
+flowchart TB
+  S["Scoping project"] --> D["Dashboards, alerts, uptime checks"]
+  P1["Project A metrics"] --> S
+  P2["Project B metrics"] --> S
+  P3["Project C metrics"] --> S
+```
+
+### 6. Google Cloud Console
+
+- Metrics scope：`Console > Monitoring > Settings > Metrics Scope`
+- Metrics Explorer：`Console > Monitoring > Metrics explorer`
+- Dashboards：`Console > Monitoring > Dashboards`
+- Uptime checks：`Console > Monitoring > Uptime checks`
+
+### 7. Cloud Shell / gcloud
+
+```bash
+gcloud monitoring dashboards list --project=SCOPING_PROJECT_ID
+gcloud monitoring uptime list-configs --project=SCOPING_PROJECT_ID
+```
+
+`SCOPING_PROJECT_ID` 為 placeholder。指令只列出 configuration；是否能看到其他 projects 的 metrics 取決於 metrics scope 與 IAM。
+
+### 8. Command Output
+
+課程包含 Lab: Monitoring and Dashboarding Multiple Projects，但沒有提供 Lab 執行紀錄，因此本文只整理概念與命令用途。
+
+### 9. 認證考點
+
+- Scoping project 保存 Monitoring configuration。
+- Metrics scope 提供跨 project 可見性，不搬移資源或 metrics。
+- Uptime check 和 notification alert 是兩個步驟。
+- Alignment 對單一 series；reduction 聚合多 series。
+- Agent 寫入 metrics 使用 Metric Writer 等最小權限。
+
+### 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | 多專案監控、dashboard、metrics query、uptime check | [Module 2](https://www.coursera.org/learn/logging-monitoring-observability-google-cloud) |
+| 現行官方文件 | Scoping project 保存 alerts、uptime、dashboard、services 等設定 | [Metrics scopes](https://docs.cloud.google.com/monitoring/settings) |
+| 備考建議 | 熟記 metrics scope 不會搬移原始 time series | 依 ACE 常見情境整理 |
+
+### 11. 本章快速複習
+
+1. Scoping project 是集中查看與保存 Monitoring configuration 的 project。
+2. Predefined dashboard 由服務提供，custom dashboard 由使用者設計。
+3. Uptime check 監測可用性，還要 alert policy 才會通知。
+4. IAM 和 metrics scope 是不同控制面。
+
+---
+
+## Chapter 3 — Alerting Policies
+中文名稱：告警政策與 Service Monitoring
+
+### 1. Learning Objectives
+
+- 建立 alerting strategy、policy、condition 與 notification channel。
+- 區分 metric threshold、metric absence、log-based alert 與 uptime alert。
+- 理解 SLI、SLO、SLA 與 error budget。
+- 避免 alert fatigue，讓告警具可行動性。
+
+### 2. 核心概念摘要
+
+Alerting policy 包含 conditions、condition combiner、notification channels、documentation 和 incident 行為。良好告警應對應使用者影響或明確維運行動，不應只因任一瞬間數值波動就通知。
+
+Service Monitoring 以 SLI 衡量服務表現、SLO 定義目標、error budget 表示允許失敗空間；SLA 則是對客戶的外部承諾，可能帶有商業後果。
+
+### 3. 詳細知識點
+
+#### 3.1 Alerting policy 結構
+
+```mermaid
+flowchart LR
+  M["Metric or log signal"] --> C["Condition"]
+  C --> P["Alerting policy"]
+  P --> I["Incident"]
+  I --> N["Notification channel"]
+```
+
+- Condition：何時視為異常。
+- Threshold：超過或低於特定值。
+- Retest window／duration：需持續多久才觸發，降低短暫尖峰噪音。
+- Combiner：多 conditions 使用 AND／OR 等組合。
+- Notification channel：Email、SMS、PagerDuty、Pub/Sub 等支援管道，依現行產品為準。
+- Documentation：提供 runbook、dashboard 和處理說明。
+
+#### 3.2 Alert 類型
+
+| 類型 | 適合情境 |
+|---|---|
+| Metric threshold | CPU、latency、error rate 超過門檻 |
+| Metric absence | 預期持續上報的 heartbeat/metric 消失 |
+| Forecast | 預測磁碟或資源即將超過門檻 |
+| Log-based alert | 特定錯誤、安全事件或罕見 log pattern |
+| Uptime check alert | Endpoint availability／SSL／latency 問題 |
+
+#### 3.3 SLI、SLO、SLA
+
+| 名稱 | 定義 | 例子 |
+|---|---|---|
+| SLI | 實際量測指標 | 成功 request 比例、p95 latency |
+| SLO | 內部可靠度目標 | 30 天內 99.9% requests 成功 |
+| SLA | 對客戶承諾 | 未達標可能提供 service credit |
+| Error budget | 允許的不可靠程度 | `1 - SLO` |
+
+99.9% SLO 的 error budget 是 0.1%，但實際可容許時間或 request 數要依測量窗口與 SLI 定義計算。
+
+#### 3.4 Alerting strategy
+
+- 對 symptom／使用者影響告警，而非所有可能 cause。
+- 使用持續時間避免 transient spike。
+- 設定 severity、ownership 和 escalation。
+- Notification 必須帶上可操作資訊與 runbook。
+- 定期清理無人處理、重複或永遠 firing 的 alerts。
+- 對 SLO burn rate 告警比單一瞬間 error rate 更能反映 error budget 消耗。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Alerting policy | Scoping project | 可針對 metrics scope 可見的 time series |
+| Notification channel | Project | Policy 引用 channel；IAM 與敏感資料要管理 |
+| Incident | Alerting policy context | Condition 觸發後建立並依狀態關閉 |
+| Service/SLO | Scoping project | Service Monitoring configuration |
+
+### 5. Google Cloud Console
+
+- `Console > Monitoring > Alerting > Create policy`
+- `Console > Monitoring > Alerting > Edit notification channels`
+- `Console > Monitoring > Services`
+
+### 6. Cloud Shell / gcloud
+
+```bash
+gcloud alpha monitoring policies list
+gcloud monitoring channels list
+```
+
+Monitoring alert policy CLI surface 可能仍有 alpha/beta 差異；實作前應以當期 `gcloud monitoring --help` 與官方 reference 為準。不要把 alpha syntax 當作永久穩定介面。
+
+### 7. Command Output
+
+課程包含 Lab: Alerting in Google Cloud 與 Lab: Service Monitoring，但未提供實際 policy JSON、incident 或 notification output，本文不補造。
+
+### 8. 認證考點
+
+- Alert policy 不等於 notification channel。
+- Uptime check 不會自動等於告警通知。
+- SLI 是量測、SLO 是目標、SLA 是承諾。
+- Duration/retest window 可降低瞬時尖峰造成的 false positive。
+- 最佳 alert 必須可採取行動並有明確 owner。
+
+### 9. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Alert strategy、policy、notification、SLI/SLO/SLA、Service Monitoring | [Module 3](https://www.coursera.org/learn/logging-monitoring-observability-google-cloud) |
+| 現行官方文件 | Metric threshold 可設定比較值與 retest window | [Metric alert policies](https://docs.cloud.google.com/monitoring/alerts/using-alerting-ui) |
+| 備考建議 | ACE 優先理解元件關係和情境選型，不背 API JSON | 依 ACE 操作能力整理 |
+
+### 10. 本章快速複習
+
+1. Signal → condition → policy → incident → notification。
+2. SLI 量測、SLO 目標、SLA 對外承諾。
+3. Metric absence 適合偵測應持續出現但中斷的訊號。
+4. Alert 應可行動並避免 fatigue。
+
+---
+
+## Chapter 4 — Advanced Logging and Analysis
+中文名稱：進階 Logging、Routing 與分析
+
+### 1. Learning Objectives
+
+- 理解 Cloud Logging architecture 與 Log Router。
+- 建立 sink、filter、bucket、exclusion 和 export destination。
+- 使用 Logging query language 與 Log Analytics。
+- 建立 logs-based metrics 並用 Monitoring 告警。
+
+### 2. 核心概念摘要
+
+Log entry 進入 Google Cloud 後，Log Router 依 resource hierarchy 中適用的 sinks 與 filters 路由。Sink 決定「哪些 logs 到哪裡」，destination 可為 log bucket、BigQuery dataset、Cloud Storage bucket、Pub/Sub topic 或其他支援目的地。
+
+Sink 不等於 bucket：sink 是 routing rule，bucket 是 Logging storage。Exclusion 只影響是否儲存/路由，不會阻止服務先產生 log。
+
+### 3. 詳細知識點
+
+#### 3.1 Logging pipeline
+
+```mermaid
+flowchart LR
+  S["Services and agents"] --> E["Log entries"]
+  E --> R["Log Router"]
+  R --> B["Log bucket"]
+  R --> Q["Pub/Sub"]
+  R --> G["Cloud Storage"]
+  R --> X["BigQuery"]
+```
+
+#### 3.2 `_Required` 與 `_Default`
+
+| 項目 | `_Required` | `_Default` |
+|---|---|---|
+| 用途 | 保存特定必要 audit logs | 保存其他預設納入 logs |
+| Sink | 不能修改或刪除 | 可修改或停用 |
+| Bucket | 有固定需求與 retention 行為 | retention 可依設定調整 |
+| ACE 重點 | 必要稽核紀錄不能用一般 exclusion 移除 | 可用 filters/exclusions 控制成本 |
+
+現行 Log Router 的細節比舊教材常見簡化圖更複雜，尤其跨 project routing 有 one-hop limit，且 destination project 的 `_Required` 不會自動集中保存來源 project 的必要 logs。
+
+#### 3.3 Sink destination 選型
+
+| 目的 | Destination |
+|---|---|
+| 在 Logging 中查詢、alert、Error Reporting | Log bucket |
+| SQL 分析與資料關聯 | BigQuery / Log Analytics-enabled bucket |
+| 長期低成本封存 | Cloud Storage |
+| 串流到 SIEM／下游程式 | Pub/Sub |
+
+建立 sink 到 destination 後，Logging 通常建立 writer identity；必須授予它 destination 寫入權限，否則 sink 存在但無法交付 logs。
+
+#### 3.4 Logs-based metrics
+
+- Counter metric：計算符合 filter 的 log entries。
+- Distribution metric：從 log field 抽取數值並形成分布。
+- User-defined logs-based metric 可加入 labels，但應避免高 cardinality。
+- Metric 只從建立後的新 log entries 累積，不會自動回填歷史 logs。
+- 建立 metric 後可在 Cloud Monitoring chart／alert 使用。
+
+#### 3.5 Logs Explorer 與 Log Analytics
+
+- Logs Explorer 使用 Logging query language，適合搜尋與排錯。
+- Log Analytics 可對升級的 log bucket 使用 SQL／BigQuery 分析能力。
+- Routing 到 BigQuery dataset 與在 Logging bucket 啟用 Log Analytics 是不同架構，不能混為一談。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Log sink | Project／Folder／Organization／Billing account | Aggregated sink 可在 hierarchy 上層集中 routing |
+| Log bucket | Regional | 可跨 project 存放 routed logs，需 IAM |
+| Logs-based metric | Project 或 bucket-scoped | 依 metric 類型與來源範圍而異 |
+| BigQuery dataset | Regional／Multi-regional | Sink destination location 與資料治理需規劃 |
+| Pub/Sub topic | Global resource with message storage policies | 用於串流消費 |
+
+### 5. Google Cloud Console
+
+- Logs Explorer：`Console > Logging > Logs Explorer`
+- Log Router：`Console > Logging > Log Router`
+- Log Storage：`Console > Logging > Log Storage`
+- Logs-based metrics：`Console > Logging > Logs-based Metrics`
+
+### 6. Cloud Shell / gcloud
+
+#### 查詢 logs
+
+```bash
+gcloud logging read 'resource.type="gce_instance" AND severity>=ERROR' \
+    --limit=20 \
+    --format=json
+```
+
+#### 列出 sinks
+
+```bash
+gcloud logging sinks list
+```
+
+#### 建立 sink 的結構
+
+```bash
+gcloud logging sinks create SINK_NAME DESTINATION \
+    --log-filter='FILTER_EXPRESSION'
+```
+
+`DESTINATION` 必須使用官方支援格式；建立後要將 sink writer identity 授予 destination 寫入權限。
+
+#### 建立 counter logs-based metric
+
+```bash
+gcloud logging metrics create METRIC_NAME \
+    --description='Count matching error logs' \
+    --log-filter='severity>=ERROR'
+```
+
+### 7. Command Output
+
+課程包含 Lab: Log Analytics on Google Cloud，但沒有提供 query 或 output。上述指令的結果依 project logs 與 IAM 而異，不建立虛構 rows。
+
+### 8. 認證考點
+
+- Sink 是 routing，bucket 是 storage。
+- Sink writer identity 需要 destination write permission。
+- Exclusion 降低儲存量，不阻止 log 產生。
+- Logs-based metric 只處理建立後符合條件的新 entries。
+- Cloud Storage 適合封存、BigQuery 適合 SQL、Pub/Sub 適合串流。
+- `_Required` sink 不能修改或刪除；`_Default` 可以調整。
+
+### 9. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Logging architecture、routing、export、query、logs-based metrics、Log Analytics | [Module 4](https://www.coursera.org/learn/logging-monitoring-observability-google-cloud) |
+| 現行官方文件 | Cross-project routing 有 one-hop limit，`_Required` 只處理來源於該 resource 的 entries | [Log routing](https://docs.cloud.google.com/logging/docs/routing/overview) |
+| 備考建議 | ACE 熟記 sink/destination/IAM 和服務選型，不需背 routing 全部邊界案例 | 依 ACE 情境題整理 |
+
+### 10. 本章快速複習
+
+1. Log Router 依 sink filter 把 entries 送到 destination。
+2. Sink 不是儲存；log bucket 才是 Logging storage。
+3. Writer identity 沒權限時，sink 不會成功交付。
+4. Logs Explorer 用 Logging query；Log Analytics 使用 SQL 分析能力。
+
+---
+
+## Chapter 5 — Working with Audit Logs
+中文名稱：使用 Cloud Audit Logs
+
+### 1. Learning Objectives
+
+- 使用 Cloud Audit Logs 回答「誰在何時對什麼資源做了什麼」。
+- 區分 Admin Activity、Data Access、System Event、Policy Denied。
+- 查詢 `protoPayload`、principal、method、resource 與 status。
+- 理解 Data Access 啟用、成本與 hierarchy inheritance。
+
+### 2. 核心概念摘要
+
+Cloud Audit Logs 記錄 Google Cloud 資源的管理與存取活動。四種類型的啟用方式、儲存位置與成本不同。Admin Activity 和 System Event 屬必要 audit logs；Data Access 通常需依服務與資料敏感度設定；Policy Denied 預設產生，但可用 exclusion 避免儲存。
+
+### 3. 詳細知識點
+
+#### 3.1 四種 Audit Logs
+
+| 類型 | 記錄內容 | 預設狀態／重點 |
+|---|---|---|
+| Admin Activity | 修改 resource configuration/metadata 的操作 | 一律寫入，不能停用 |
+| Data Access | 讀取／寫入使用者資料的 API 行為 | 多數服務預設未啟用；BigQuery 等有例外，需查服務文件 |
+| System Event | Google 系統對 resource 執行的管理事件 | 一律寫入，不能停用 |
+| Policy Denied | 因安全政策違規而拒絕的 request | 預設產生，不能停用產生；可 exclusion 不儲存 |
+
+不要把一般「Permission denied」都直接當成 Policy Denied audit log；該分類是因 security policy violation 的特定 audit log 類型。
+
+#### 3.2 Audit log entry 常見欄位
+
+- `protoPayload.authenticationInfo.principalEmail`：發起者。
+- `protoPayload.methodName`：呼叫的方法。
+- `protoPayload.resourceName`：目標資源。
+- `protoPayload.authorizationInfo`：權限檢查。
+- `protoPayload.status`：API 狀態／錯誤。
+- `resource.type`、`resource.labels`：被稽核資源。
+- `timestamp`：事件時間。
+
+#### 3.3 Data Access configuration
+
+Data Access 可在 organization、folder、project 設定。上層啟用的設定會套用到子層；project 不能停用 parent 已啟用的 Data Access audit logs。
+
+啟用前應評估：
+
+- 哪些 services 與 permission types 需要稽核。
+- 數量、storage 與 query 成本。
+- retention、集中化與法遵。
+- 誰能查看 audit logs，避免擴大敏感資料可見性。
+
+#### 3.4 Audit Logs 與 IAM
+
+Cloud Audit Logs 是事後證據，不是 IAM enforcement 本身。IAM 決定能否存取；Audit Logs 記錄已發生或被拒絕的事件。只有適當 IAM 權限的 principal 才能查看敏感 Data Access logs。
+
+#### 3.5 Best practices
+
+- 在 organization/folder 層集中制定 Data Access policy。
+- 使用 aggregated sink 將 audit logs 集中到安全 project。
+- 限制 log bucket IAM，避免 audit trail 被不必要人員查看。
+- 對管理操作、IAM 變更與高風險 data access 建立 alerts。
+- 不要在 application logs 主動寫入密碼、token、私鑰或完整敏感資料。
+
+### 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Audit log configuration | Organization／Folder／Project | Data Access 設定可由 hierarchy 上層繼承 |
+| Audit log entry | Resource where activity occurs | 可由 aggregated sink 路由到集中 destination |
+| `_Required` bucket | Project／resource-local Regional bucket | 保存特定必要 audit logs |
+| Aggregated sink | Folder／Organization | 可集中子層 projects 的 matching logs |
+
+### 5. Architecture
+
+```mermaid
+flowchart TB
+  U["User or service account"] --> A["Google Cloud API"]
+  A --> R["Resource action or denial"]
+  R --> L["Cloud Audit Log entry"]
+  L --> B["Required or configured bucket"]
+  L --> C["Central audit destination"]
+```
+
+### 6. Google Cloud Console
+
+- 查詢：`Console > Logging > Logs Explorer > Log name > Cloud Audit`
+- Data Access 設定：`Console > IAM & Admin > Audit Logs`
+- 集中 routing：`Console > Logging > Log Router > Create sink`
+
+### 7. Cloud Shell / gcloud
+
+#### 查 Admin Activity
+
+```bash
+gcloud logging read \
+    'logName:"cloudaudit.googleapis.com%2Factivity"' \
+    --limit=20 \
+    --format=json
+```
+
+#### 查特定 principal
+
+```bash
+gcloud logging read \
+    'protoPayload.authenticationInfo.principalEmail="PRINCIPAL_EMAIL"' \
+    --limit=20 \
+    --format=json
+```
+
+`PRINCIPAL_EMAIL` 是 placeholder。查無結果可能是時間範圍、resource hierarchy、log type、IAM 或 audit configuration 問題，不代表事件一定沒有發生。
+
+### 8. Command Output
+
+課程包含 Lab: Cloud Audit Logs，但未提供實際 log entries。Audit Logs 可能含 principal 和 resource 資訊，不應為了筆記而複製敏感完整紀錄。
+
+### 9. 認證考點
+
+- Admin Activity：使用者／管理者變更設定。
+- System Event：Google 系統變更資源。
+- Data Access：讀寫資料，通常要明確啟用。
+- Policy Denied：安全政策拒絕事件。
+- Audit Logs 回答 who did what, where, when；IAM 則執行 authorization。
+- Parent 啟用的 Data Access，child project 不能自行關閉。
+
+### 10. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | Audit log types、Data Access、entry format、best practices | [Module 5](https://www.coursera.org/learn/logging-monitoring-observability-google-cloud) |
+| 現行官方文件 | Policy Denied 預設產生且不能停用，但可 exclusion 不儲存 | [Cloud Audit Logs](https://docs.cloud.google.com/logging/docs/audit) |
+| 現行官方文件 | Data Access 可在 organization/folder/project 設定，並受 parent 設定約束 | [Configure Data Access](https://docs.cloud.google.com/logging/docs/audit/configure-data-access) |
+| 備考建議 | 必須能從情境判斷四種 audit log | 依 ACE 維運與安全情境整理 |
+
+### 11. 本章快速複習
+
+1. Admin Activity 是人／工作負載變更；System Event 是 Google 系統事件。
+2. Data Access 多數需設定啟用，可能有高 volume。
+3. Policy Denied 是安全政策拒絕，不是所有 403 的通稱。
+4. Audit Logs 是稽核證據，IAM 是授權機制。
+
+---
+
+## 認證重點統整
+
+### ACE 重點
+
+#### 高優先級
+
+- Cloud Monitoring：metrics、time series、dashboard、uptime checks、alerting policies。
+- Cloud Logging：Logs Explorer、Log Router、sink、bucket、exclusion、retention。
+- 多專案監控使用 metrics scope 與 scoping project。
+- Ops Agent 收集 Compute Engine guest/application metrics 與 logs。
+- Logs-based metric 將 log filter 結果轉成 Monitoring metric。
+- Alert policy、condition、incident、notification channel 的關係。
+- SLI、SLO、SLA、error budget 的差異。
+- Cloud Audit Logs 四種類型及 Data Access 設定。
+- 依 BigQuery、Cloud Storage、Pub/Sub 目的選擇 sink destination。
+
+#### 課程 Lab 對應
+
+| Lab | ACE 應掌握成果 |
+|---|---|
+| Monitoring and Dashboarding Multiple Projects | 建 metrics scope、跨專案 dashboard、IAM |
+| Alerting in Google Cloud | 建 policy、condition、notification channel |
+| Service Monitoring | 建 service/SLO、理解 error budget |
+| Log Analytics on Google Cloud | 查詢 logs、SQL 分析與 storage 架構 |
+| Cloud Audit Logs | 查 principal、method、resource、status |
+
+### 服務選型與比較
+
+| 情境 | 建議服務 | 理由 | 常見誤解 |
+|---|---|---|---|
+| 查看 VM CPU 趨勢 | Cloud Monitoring | 原生 metric/time series | 不需要先匯出 logs 到 BigQuery |
+| 搜尋單次 application error 上下文 | Cloud Logging | Log entry 含詳細事件資料 | Metric 通常沒有完整 stack/context |
+| 多 project 集中 metrics dashboard | Metrics scope | Scoping project 集中 configuration/view | 不會搬移原始 resources |
+| 長期封存 logs | Cloud Storage sink | 適合 archive | 不適合即時 SQL 查詢 |
+| SQL 分析大量 logs | Log Analytics／BigQuery | SQL 與分析能力 | Logs Explorer query language 不是 SQL |
+| 串流 logs 到 SIEM | Pub/Sub sink | 下游 subscriber 持續消費 | Cloud Storage 不是即時串流 |
+| 從 errors logs 告警 | Logs-based metric 或 log-based alert | 將事件轉成可告警 signal | 建 metric 不回填歷史 logs |
+| 查誰修改 IAM policy | Admin Activity audit log | 設定／metadata 變更 | 不是 Data Access |
+| 查誰讀取敏感資料 | Data Access audit log | 記錄資料讀取 | 多數服務需先啟用 |
+
+### 常見 ACE 陷阱
+
+1. **Sink 就是 log bucket**：錯，sink 是 routing rule，bucket 是 storage。
+2. **建立 sink 後一定會寫入 destination**：錯，writer identity 還需要權限。
+3. **Exclusion 會讓服務不產生 log**：錯，只影響 routing/storage。
+4. **Metrics scope 會把 metrics 複製到 scoping project**：錯。
+5. **Uptime check 失敗會自動寄信**：必須設定 alert policy/channel。
+6. **所有 Audit Logs 都能停用**：Admin Activity/System Event 不能停用。
+7. **Data Access 預設在所有服務啟用**：錯，多數需明確設定。
+8. **SLO 就是具法律效力 SLA**：錯，SLO 是內部目標。
+9. **建立 logs-based metric 會分析過去所有 logs**：錯，不回填歷史資料。
+10. **Ops Agent 要授予 Owner**：錯，使用最小必要 writer roles。
+
+### gcloud 指令速查
+
+```bash
+# 查詢錯誤 logs
+gcloud logging read 'severity>=ERROR' --limit=20 --format=json
+
+# 列出 sinks
+gcloud logging sinks list
+
+# 描述 sink
+gcloud logging sinks describe SINK_NAME
+
+# 列出 logs-based metrics
+gcloud logging metrics list
+
+# 列出 dashboards
+gcloud monitoring dashboards list
+
+# 列出 uptime check configs
+gcloud monitoring uptime list-configs
+```
+
+### 考前自我檢查
+
+- [ ] 我能比較 metrics、logs、traces。
+- [ ] 我知道 scoping project 與 metrics scope 的角色。
+- [ ] 我能區分 dashboard、uptime check、alert policy、notification channel。
+- [ ] 我知道 alignment 與 reduction 的差異。
+- [ ] 我能說明 Log Router、sink、filter、bucket、destination。
+- [ ] 我知道 sink writer identity 需要 IAM。
+- [ ] 我能依 archive、SQL、streaming 選 Cloud Storage、BigQuery、Pub/Sub。
+- [ ] 我能分辨四種 Cloud Audit Logs。
+- [ ] 我知道 Ops Agent 的目的與最小權限原則。
+- [ ] 我能解釋 SLI、SLO、SLA 與 error budget。
+
+### 待補材料與限制
+
+- 公開 Coursera 課綱提供 Modules、Lessons 和 Labs 名稱，但不包含完整影片逐字稿與 Lab commands。
+- 未提供 Lab 或個人 Cloud Shell 執行紀錄，因此沒有虛構 output／resource ID／incident。
+- Console 名稱、Monitoring query options、Log Analytics、agent policies 與 `gcloud` command surfaces 可能更新，實作前應查官方文件。
+- Error Reporting、Trace、Profiler 的深入設定屬建議後續 Part 2「Observability in Google Cloud」。
+
+### 官方參考資料
+
+- [Logging and Monitoring in Google Cloud](https://www.skills.google/paths/11/course_templates/99)
+- [Coursera course modules](https://www.coursera.org/learn/logging-monitoring-observability-google-cloud)
+- [Metrics scopes](https://docs.cloud.google.com/monitoring/settings)
+- [Configure multiple-project Monitoring](https://docs.cloud.google.com/monitoring/settings/multiple-projects)
+- [Cloud Monitoring alerting](https://docs.cloud.google.com/monitoring/alerts/using-alerting-ui)
+- [Cloud Logging routing](https://docs.cloud.google.com/logging/docs/routing/overview)
+- [Cloud Audit Logs](https://docs.cloud.google.com/logging/docs/audit)
+- [Configure Data Access audit logs](https://docs.cloud.google.com/logging/docs/audit/configure-data-access)
+- [Ops Agent overview](https://docs.cloud.google.com/stackdriver/docs/solutions/agents/ops-agent)
+- [`gcloud logging sinks`](https://docs.cloud.google.com/sdk/gcloud/reference/logging/sinks)
+- [`gcloud logging metrics`](https://docs.cloud.google.com/sdk/gcloud/reference/logging/metrics)

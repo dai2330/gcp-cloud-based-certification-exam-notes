@@ -69,6 +69,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Deployment Types](../courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md){ .md-button .md-button--primary }
 
+### 11. Logging and Monitoring in Google Cloud
+
+掌握 Cloud Monitoring、Cloud Logging、dashboard、uptime check、alerting policy、log routing、logs-based metrics 與 Cloud Audit Logs 的維運情境。
+
+[開始閱讀 Logging and Monitoring](../courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

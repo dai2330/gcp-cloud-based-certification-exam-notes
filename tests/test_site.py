@@ -26,6 +26,8 @@ AI_INFRASTRUCTURE_CLOUD_TPUS_COURSE = ROOT / "docs/courses/ace/ai-infrastructure
 AI_INFRASTRUCTURE_CLOUD_TPUS_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_AI_Infrastructure_Cloud_TPUs.source.txt"
 AI_INFRASTRUCTURE_DEPLOYMENT_TYPES_COURSE = ROOT / "docs/courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md"
 AI_INFRASTRUCTURE_DEPLOYMENT_TYPES_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_AI_Infrastructure_Deployment_Types.source.txt"
+LOGGING_MONITORING_COURSE = ROOT / "docs/courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md"
+LOGGING_MONITORING_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Logging_and_Monitoring_in_Google_Cloud.source.txt"
 
 
 def read(relative: str) -> str:
@@ -702,6 +704,73 @@ class AiInfrastructureDeploymentTypesCourseTests(unittest.TestCase):
         self.assertIn("AI Infrastructure:", config)
         self.assertIn(f"Deployment Types: {course_path}", config)
         self.assertLess(config.index(f"Cloud TPUs: {previous_path}"), config.index(f"Deployment Types: {course_path}"))
+        self.assertIn(course_path, homepage)
+        self.assertLess(homepage.index(previous_path), homepage.index(course_path))
+        self.assertIn(f"../{course_path}", learning_path)
+        self.assertLess(learning_path.index(f"../{previous_path}"), learning_path.index(f"../{course_path}"))
+
+
+class LoggingAndMonitoringCourseTests(unittest.TestCase):
+    def test_logging_monitoring_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(LOGGING_MONITORING_COURSE.is_file())
+
+    def test_logging_monitoring_has_one_page_h1_five_chapters_and_diagrams(self) -> None:
+        content = LOGGING_MONITORING_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        chapter_h2s = [line for line in outside_fence_lines if re.match(r"^## Chapter [1-5] — .+$", line)]
+        self.assertEqual(h1s, ["# Logging and Monitoring in Google Cloud"])
+        self.assertEqual(len(chapter_h2s), 5)
+        self.assertEqual(content.count("```mermaid"), 5)
+        self.assertRegex(content, r"```bash\n# 查詢錯誤 logs\n")
+
+    def test_logging_monitoring_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = LOGGING_MONITORING_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = LOGGING_MONITORING_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 776)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_logging_monitoring_is_linked_from_all_discovery_surfaces(self) -> None:
+        previous_path = "courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md"
+        course_path = "courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md"
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Logging and Monitoring in Google Cloud:", config)
+        self.assertIn(f"Course Notes: {course_path}", config)
+        self.assertLess(config.index(f"Deployment Types: {previous_path}"), config.index("Logging and Monitoring in Google Cloud:"))
         self.assertIn(course_path, homepage)
         self.assertLess(homepage.index(previous_path), homepage.index(course_path))
         self.assertIn(f"../{course_path}", learning_path)

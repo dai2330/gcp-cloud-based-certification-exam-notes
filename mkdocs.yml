@@ -67,6 +67,8 @@ nav:
               - Cloud GPUs: courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md
               - Cloud TPUs: courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md
               - Deployment Types: courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md
+          - Logging and Monitoring in Google Cloud:
+              - Course Notes: courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md
 
 plugins:
   - search:

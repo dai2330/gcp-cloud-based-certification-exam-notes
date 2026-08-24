@@ -112,6 +112,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Logging and Monitoring in Google Cloud](courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -275,6 +284,22 @@ hide:
 - **包含：** gcloud、GKE、4 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · OBSERVABILITY</span>
+
+### Logging and Monitoring in Google Cloud
+
+涵蓋 Cloud Monitoring、Cloud Logging、dashboard、uptime check、alerting policy、log routing、logs-based metrics 與 Cloud Audit Logs。
+
+- **5 個 Chapter**
+- **文件校正：2026-08-24**
+- **包含：** gcloud、Ops Agent、5 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md)
 
 </article>
 
