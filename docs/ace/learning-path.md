@@ -81,13 +81,19 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Terraform for Google Cloud](../courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md){ .md-button .md-button--primary }
 
-### 13. Implement Load Balancing on Compute Engine: Challenge Lab (GSP313)
+### 13. Build Infrastructure with Terraform on Google Cloud
+
+實作 Terraform modules、既有 VM import、Cloud Storage remote backend、Registry network module、firewall rule 與 GSP345 Challenge Lab。
+
+[開始閱讀 Build Infrastructure with Terraform](../courses/ace/build-infrastructure-with-terraform-on-google-cloud/build-infrastructure-with-terraform-on-google-cloud.md){ .md-button .md-button--primary }
+
+### 14. Implement Load Balancing on Compute Engine: Challenge Lab (GSP313)
 
 實作三台 Web VM、regional passthrough Network Load Balancer，以及使用 instance template、MIG、health check 與 backend service 的 Application Load Balancer。
 
 [開始閱讀 GSP313 Challenge Lab](../courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md){ .md-button .md-button--primary }
 
-### 14. Deploy Kubernetes Applications on Google Cloud
+### 15. Deploy Kubernetes Applications on Google Cloud
 
 掌握 Dockerfile、Artifact Registry、GKE、kubectl、Kubernetes Deployment、Service、LoadBalancer 與 GSP318 Challenge Lab 的完整部署鏈。
 

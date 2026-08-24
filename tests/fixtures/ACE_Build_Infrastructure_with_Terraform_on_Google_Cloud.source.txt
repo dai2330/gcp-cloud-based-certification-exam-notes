@@ -1,0 +1,940 @@
+# Build Infrastructure with Terraform on Google Cloud｜ACE 實戰筆記
+
+中文名稱：使用 Terraform 在 Google Cloud 建置基礎架構
+
+> 課程：Google Skills `course_templates/636`<br>
+> Challenge Lab：GSP345<br>
+> 程度：Intermediate<br>
+> 公開頁面時數：1 小時 45 分鐘<br>
+> 備考目標：Associate Cloud Engineer（ACE）<br>
+> 驗證日期：2026-08-25
+
+---
+
+## 1. Learning Objectives
+
+完成本課程後，應能：
+
+1. 建立 Terraform root module 與 child modules 的目錄結構。
+2. 將既有 Compute Engine VM import 進 Terraform state。
+3. 使用 Cloud Storage bucket 建立 GCS remote backend 並遷移 local state。
+4. 修改 Compute Engine machine type、新增及移除 VM resources。
+5. 使用 Terraform Registry module 建立 VPC 與 Subnets。
+6. 以 resource reference 連接 VM、VPC、Subnet 與 Firewall Rule。
+7. 使用 `fmt`、`init`、`validate`、`plan`、`apply` 與 state 指令排錯。
+
+---
+
+## 2. 課程定位與 course 443 的差異
+
+course 443「Getting Started with Terraform for Google Cloud」偏重 Terraform 基礎觀念；本課程 636 則以 GSP345 Challenge Lab 驗證完整操作能力。
+
+| Course 443 基礎 | Course 636 實戰 |
+|---|---|
+| IaC、HCL 與標準 workflow | Import 既有資源並讓 configuration 對齊 |
+| Resource、variable、output | 自建 instances/storage child modules |
+| Module 概念 | 使用 Terraform Registry network module |
+| State 基礎 | 將 local state 遷移至 GCS backend |
+| 基本 plan/apply | 修改、新增、移除與重新配置 VM/VPC/firewall |
+
+### GSP345 評分項目
+
+| Checkpoint | 配分 | 核心能力 |
+|---|---:|---|
+| Import infrastructure | 20 | Resource address、configuration、state binding |
+| Configure a remote backend | 10 | Cloud Storage bucket、backend migration |
+| Modify and update infrastructure | 20 | VM machine type、新增 resource |
+| Destroy resources | 10 | 移除 configuration 後 plan/apply |
+| Use a Module from the Registry | 20 | VPC、2 Subnets、module outputs/references |
+| Configure a firewall | 20 | Firewall Rule、network reference、TCP/80 |
+
+---
+
+## 3. 核心架構
+
+```mermaid
+flowchart TD
+    R["Root module"] --> I["Instances module"]
+    R --> S["Storage module"]
+    R --> N["Registry Network module"]
+    S --> B["GCS remote state bucket"]
+    N --> V["VPC + subnet-01 + subnet-02"]
+    I --> C["Compute Engine VMs"]
+    C --> V
+```
+
+完成後的主要資源關係：
+
+- `tf-instance-1` 連到 `subnet-01`：`10.10.10.0/24`。
+- `tf-instance-2` 連到 `subnet-02`：`10.10.20.0/24`。
+- Registry module 建立 custom-mode VPC，routing mode 為 `GLOBAL`。
+- `tf-firewall` 套用至該 VPC，允許 `0.0.0.0/0` 到 TCP/80。
+- Terraform state 存放於 GCS backend，prefix 為 `terraform/state`。
+
+---
+
+# Chapter 1 — Terraform Project and Module Structure
+
+中文名稱：Terraform 專案與模組結構
+
+## 1. Learning Objectives
+
+- 分辨 root module 與 child module。
+- 建立 Lab 指定目錄。
+- 正確傳遞 `project_id`、`region`、`zone`。
+- 理解 module initialization。
+
+## 2. 核心概念摘要
+
+執行 `terraform` 指令的目錄是 root module；`module` block 呼叫的其他目錄或 Registry package 是 child module。
+
+```text
+main.tf
+variables.tf
+modules/
+├── instances/
+│   ├── instances.tf
+│   ├── outputs.tf
+│   └── variables.tf
+└── storage/
+    ├── storage.tf
+    ├── outputs.tf
+    └── variables.tf
+```
+
+檔名主要用於人類組織；同一 module 目錄內的 `.tf` 檔會被 Terraform 合併解析。資源不會依檔案上下順序執行，而是依 dependency graph。
+
+## 3. 詳細知識點
+
+### 3.1 Provider 與 required providers
+
+```hcl
+terraform {
+  required_providers {
+    google = {
+      source = "hashicorp/google"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+  zone    = var.zone
+}
+```
+
+Lab 要求 provider block 明確包含 project、region、zone。正式專案應建立經測試的 version constraints，並提交 `.terraform.lock.hcl`。
+
+### 3.2 Module 不會自動繼承 input variables
+
+Root variable 與 child variable 名稱相同，不代表自動傳值。呼叫 module 時應明確傳入：
+
+```hcl
+module "instances" {
+  source = "./modules/instances"
+
+  project_id = var.project_id
+  region     = var.region
+  zone       = var.zone
+}
+```
+
+Child module：
+
+```hcl
+variable "project_id" {
+  type = string
+}
+
+variable "region" {
+  type = string
+}
+
+variable "zone" {
+  type = string
+}
+```
+
+### 3.3 初始化
+
+`terraform init` 會：
+
+- 初始化 backend。
+- 下載 providers。
+- 下載或解析 child modules。
+- 建立 `.terraform/` 與 lock file。
+
+新增或修改 module source、provider 或 backend 後，通常需再次執行 `init`。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Root module | Terraform working directory | 擁有 backend 與 top-level resources/module calls |
+| Local child module | Filesystem path | 由 `source = "./modules/..."` 參照 |
+| Provider configuration | Module tree | Child modules通常使用傳入/繼承的 provider configuration |
+| `.terraform.lock.hcl` | Working directory | 鎖定 provider selections，通常應提交版本控制 |
+
+## 5. Cloud Shell / CLI
+
+現行 GSP345 說明指出 Terraform 不預裝於 Cloud Shell，需依 Lab 提供的 HashiCorp repository 安裝流程處理。安裝後先驗證：
+
+```bash
+terraform --version
+```
+
+建立目錄與空檔案時，可在 Cloud Shell Editor 操作；完成後：
+
+```bash
+terraform fmt -recursive
+terraform init
+terraform validate
+```
+
+指令解釋：
+
+- `fmt -recursive`：格式化 root 與子目錄的 Terraform files。
+- `init`：初始化 backend、provider 與 modules。
+- `validate`：檢查 configuration 語法與內部一致性，不會建立資源。
+
+## 6. 認證考點
+
+- Backend 只能在 root module 設定，child modules 不應各自設定 backend。
+- Modules 的 inputs/outputs 形成清楚介面。
+- `.terraform/` 不提交 Git；`.terraform.lock.hcl` 通常提交。
+- 檔案順序不決定 resource order；references 建立 dependencies。
+- `validate` 不驗證所有 IAM、quota 或真實部署條件。
+
+## 7. 本章快速複習
+
+```text
+Root module 管 backend 與組裝；child module 封裝 resources；inputs 傳入，outputs 傳出。
+```
+
+---
+
+# Chapter 2 — Import Existing Infrastructure
+
+中文名稱：匯入既有基礎架構
+
+## 1. Learning Objectives
+
+- 為既有 VM 撰寫相符 configuration。
+- 理解 Terraform resource address 與 Google Cloud resource ID。
+- 使用 `terraform import` 建立 state binding。
+- 在 import 後安全審查 drift。
+
+## 2. 核心概念摘要
+
+Import 不會把 VM 搬到 Terraform，也不會重新建立它；它是在 state 中建立：
+
+```text
+Terraform resource address ↔ Existing Google Cloud resource
+```
+
+GSP345 要將 `tf-instance-1`、`tf-instance-2` 匯入 `instances` child module。
+
+## 3. 詳細知識點
+
+### 3.1 Resource address
+
+Child module 內 resource 的完整 address：
+
+```text
+module.instances.google_compute_instance.tf-instance-1
+module.instances.google_compute_instance.tf-instance-2
+```
+
+這不是 Google Cloud VM name，而是 Terraform state address。
+
+### 3.2 Minimal configuration
+
+Lab 要求 configuration 至少對齊：
+
+- `name`
+- `machine_type`
+- `zone`
+- `boot_disk`
+- `network_interface`
+- `metadata_startup_script`
+- `allow_stopping_for_update`
+
+```hcl
+metadata_startup_script = <<-EOT
+#!/bin/bash
+EOT
+
+allow_stopping_for_update = true
+```
+
+實際 image、machine type、zone、network 必須從當次 Lab 的 VM details 取得，不應抄舊版攻略。
+
+### 3.3 Import 流程
+
+1. 先建立 module call 與 resource block。
+2. `terraform init`。
+3. 用正確 address 與 import ID 匯入。
+4. `terraform plan` 檢查 configuration 與真實資源差異。
+5. 修正 configuration，避免非預期更新或 replacement。
+6. 審查後才 `apply`。
+
+```bash
+terraform import \
+  module.instances.google_compute_instance.tf-instance-1 \
+  '<INSTANCE_IMPORT_ID_1>'
+
+terraform import \
+  module.instances.google_compute_instance.tf-instance-2 \
+  '<INSTANCE_IMPORT_ID_2>'
+```
+
+Lab 頁面要求從 VM details 取得 Instance ID、boot image 與 machine type。Import ID 格式應以當次 provider resource documentation 與 Lab 指示為準。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Compute Engine VM | Zonal | Import configuration 必須使用正確 zone |
+| Terraform resource address | State 內 | 必須包含 `module.instances` path |
+| Import ID | Provider-specific | 識別 Google Cloud 中既有 VM |
+
+## 5. Google Cloud Console
+
+```text
+Console > Compute Engine > VM instances > tf-instance-1 / tf-instance-2
+```
+
+記錄：
+
+- Zone
+- Machine type
+- Boot disk image
+- Network interface
+- Instance ID／provider 要求的 import identifier
+
+## 6. Cloud Shell / Terraform
+
+```bash
+terraform state list
+terraform state show module.instances.google_compute_instance.tf-instance-1
+terraform plan
+```
+
+- `state list`：確認 resource address 已進 state。
+- `state show`：檢視 Terraform state 中的屬性。
+- `plan`：檢查 configuration、state 與 remote object 的差異。
+
+## 7. 認證考點
+
+- Import 只建立 state binding，不等於完整產生最佳 configuration。
+- Import 前後都不應盲目 apply；先讓 HCL 對齊真實資源。
+- Resource address 寫錯會匯入錯誤位置。
+- 同一 remote object 不應同時綁到多個 Terraform addresses。
+- 資源納管後，避免繼續以 Console 隨意修改造成 drift。
+
+## 8. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | 為 Lab 簡化，minimal configuration import 後允許 apply 就地更新 VM | [GSP345 Task 2](https://www.skills.google/focuses/42740?parent=catalog) |
+| 現行官方文件 | Production import 應先完整評估 configuration 與 plan，納管後專由 Terraform 管理 | [Import Google Cloud resources](https://docs.cloud.google.com/docs/terraform/resource-management/import) |
+| 備考建議 | 題目問「保留既有資源並納入 Terraform」時，優先想到 import，而不是 destroy/recreate | 推論，非官方考綱聲明 |
+
+## 9. 本章快速複習
+
+```text
+Write matching configuration → import → state show → plan → correct drift → apply
+```
+
+---
+
+# Chapter 3 — Remote State with Cloud Storage
+
+中文名稱：以 Cloud Storage 管理遠端狀態
+
+## 1. Learning Objectives
+
+- 建立 state bucket。
+- 設定 `backend "gcs"`。
+- 將 local state 遷移到 remote backend。
+- 理解 state 安全與多人協作。
+
+## 2. 核心概念摘要
+
+State 包含 resource binding 與大量屬性，可能含敏感資訊。團隊應使用受保護的 remote backend，而不是交換本機 `terraform.tfstate`。
+
+GSP345 流程：
+
+```text
+Local state → Terraform 建立 GCS bucket → 設定 gcs backend
+→ terraform init → 確認複製 existing state
+```
+
+## 3. 詳細知識點
+
+### 3.1 Storage module
+
+```hcl
+resource "google_storage_bucket" "state" {
+  name                        = var.bucket_name
+  location                    = "US"
+  force_destroy               = true
+  uniform_bucket_level_access = true
+}
+```
+
+Lab 要求 `force_destroy = true` 方便清理；production state bucket 通常不應輕易允許連同 objects 一併刪除。
+
+### 3.2 Backend block
+
+```hcl
+terraform {
+  backend "gcs" {
+    bucket = "<LAB_ASSIGNED_BUCKET_NAME>"
+    prefix = "terraform/state"
+  }
+}
+```
+
+Backend configuration 在 `terraform init` 階段處理，不能直接使用一般 Terraform input variables。
+
+### 3.3 Bootstrap 問題
+
+若同一 configuration 先建立 bucket，再將自己的 backend 移到該 bucket，需分兩階段：
+
+1. 使用 local backend apply，先建立 bucket。
+2. 加入 GCS backend block。
+3. 再次 `terraform init`，遷移 existing state。
+
+正式環境常將 state bootstrap bucket 放在獨立 configuration/project 管理，以降低循環依賴與誤刪風險。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| Cloud Storage bucket | Global namespace；具 location | Bucket name globally unique，Lab 使用 `US` multi-region |
+| GCS backend prefix | Bucket 內 object prefix | GSP345 評分要求 `terraform/state` |
+| Terraform state | Backend object | 應以 IAM 限制部署者與少數管理者存取 |
+
+## 5. Cloud Shell / Terraform
+
+建立 bucket 後加入 backend block，再執行：
+
+```bash
+terraform init -migrate-state
+```
+
+若互動提示詢問是否複製 existing state，確認目標 bucket/prefix 正確後回答 `yes`。
+
+驗證：
+
+```bash
+terraform state list
+gcloud storage ls "gs://<LAB_ASSIGNED_BUCKET_NAME>/terraform/state/**"
+```
+
+不要直接下載、修改後上傳 state JSON 作為一般維護方式。
+
+## 6. 認證考點
+
+- Remote backend 集中 state，並支援 state locking/協作能力。
+- State 不應提交 Git。
+- GCS bucket 應使用最小 IAM、Object Versioning、適當 retention/lifecycle 與稽核。
+- `sensitive = true` 不代表值不會進 state。
+- Backend 變更後執行 `terraform init`，遷移前確認來源與目的。
+- State bucket 與一般 workload 適度隔離，可降低 blast radius。
+
+## 7. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | `force_destroy = true` 並使用 `US` bucket，便於限時 Lab 建立與清理 | GSP345 Task 3 |
+| 現行官方文件 | Google 建議以 Cloud Storage remote backend、限制存取並避免 state 進 VCS | [Terraform security best practices](https://docs.cloud.google.com/docs/terraform/best-practices/security) |
+| 現行官方文件 | Object Versioning 可協助 state 復原，但舊 versions 會產生成本，應配合 lifecycle | [Store state in Cloud Storage](https://docs.cloud.google.com/docs/terraform/resource-management/store-state) |
+
+## 8. 本章快速複習
+
+```text
+State 是關鍵資料：remote、locked、versioned、least privilege、never Git。
+```
+
+---
+
+# Chapter 4 — Modify, Create, and Destroy Resources
+
+中文名稱：修改、新增與移除資源
+
+## 1. Learning Objectives
+
+- 將 VM machine type 更新為 `e2-standard-2`。
+- 新增第三台 VM。
+- 透過移除 resource block 刪除第三台 VM。
+- 辨識 in-place update、replacement 與 destroy。
+
+## 2. 核心概念摘要
+
+Terraform 是以 configuration 宣告 desired state：
+
+- Configuration 新增 resource → plan 通常顯示 `+ create`。
+- 可更新屬性改變 → `~ update in-place`。
+- ForceNew 屬性改變 → `-/+ replace`。
+- Configuration 移除仍在 state 的 resource → `- destroy`。
+
+## 3. 詳細知識點
+
+### 3.1 修改 machine type
+
+GSP345 現行要求三台 VM 均使用：
+
+```hcl
+machine_type = "e2-standard-2"
+```
+
+並在既有/imported VMs 使用：
+
+```hcl
+allow_stopping_for_update = true
+```
+
+部分 machine type 變更需要停止 VM。套用前應閱讀 plan，正式環境還要評估 downtime、MIG/HA 架構與維護窗口。
+
+### 3.2 新增第三台 VM
+
+第三台名稱由當次 Lab 動態指定，不能從公開頁面取得。Resource local name、Google Cloud `name`、zone、machine type 都必須符合題目。
+
+### 3.3 移除第三台 VM
+
+現行 GSP345 Task 5 要求刪除第三台 VM 的 resource block，再執行 plan/apply。這是 declarative workflow：因 desired state 不再包含該 object，Terraform 計畫刪除 remote resource。
+
+若只想停止 Terraform 管理但保留真實 VM，應評估 `terraform state rm`，而不是從 configuration 移除後直接 apply。
+
+## 4. Cloud Shell / Terraform
+
+每個任務結束前：
+
+```bash
+terraform fmt -recursive
+terraform validate
+terraform plan -out=tfplan
+terraform show tfplan
+terraform apply tfplan
+```
+
+刪除前特別檢查 plan 的 address 與數量，避免錯誤 backend/workspace/project 造成誤刪。
+
+## 5. 認證考點
+
+- 移除 configuration 後 apply 通常會刪除真實 resource。
+- `state rm` 只解除 state binding，不會刪除真實 resource。
+- `terraform destroy -target=...` 或 targeted operations 只適合特殊恢復/排錯，不宜當日常 workflow。
+- `terraform taint` 是舊式流程；現行 Terraform 可用 `-replace=ADDRESS` 在 plan/apply 明確要求 replacement。
+- Apply saved plan 可確保套用已審查的 plan，但 plan file 也可能含敏感資訊。
+
+## 6. 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | 現行 Task 5 以移除 resource configuration 後 apply 來 destroy 第三台 VM | [GSP345 Task 5](https://www.skills.google/focuses/42740?parent=catalog) |
+| 現行官方文件 | `terraform taint` 已不建議使用；HashiCorp 建議 `terraform apply -replace=ADDRESS` | [terraform taint](https://developer.hashicorp.com/terraform/cli/commands/taint) |
+| 備考建議 | 分清 destroy remote resource 與只解除 state 管理 | 推論，非官方考綱聲明 |
+
+## 7. 本章快速複習
+
+```text
+Remove block + apply = destroy remote object；state rm = keep object, remove binding。
+```
+
+---
+
+# Chapter 5 — Terraform Registry Network Module
+
+中文名稱：使用 Registry Module 建立 VPC
+
+## 1. Learning Objectives
+
+- 使用指定版本的 Google network module。
+- 建立 VPC 與兩個 regional Subnets。
+- 將 VMs 接到 module 建立的 network/subnets。
+- 理解 module outputs 與 resource references。
+
+## 2. 核心概念摘要
+
+GSP345 指定使用 Terraform Registry Network Module `10.0.0`：
+
+- VPC name：Lab 動態值。
+- Routing mode：`GLOBAL`。
+- `subnet-01`：`10.10.10.0/24`。
+- `subnet-02`：`10.10.20.0/24`。
+- 兩個 Subnets 位於 Lab region。
+- 不需要 secondary ranges 或額外 routes。
+
+## 3. 詳細知識點
+
+概念範例：
+
+```hcl
+module "network" {
+  source  = "terraform-google-modules/network/google"
+  version = "10.0.0"
+
+  project_id   = var.project_id
+  network_name = var.vpc_name
+  routing_mode = "GLOBAL"
+
+  subnets = [
+    {
+      subnet_name   = "subnet-01"
+      subnet_ip     = "10.10.10.0/24"
+      subnet_region = var.region
+    },
+    {
+      subnet_name   = "subnet-02"
+      subnet_ip     = "10.10.20.0/24"
+      subnet_region = var.region
+    }
+  ]
+}
+```
+
+### 3.1 版本固定
+
+Module version 會影響 inputs、outputs、provider requirements 與建立行為。Lab 明確要求 `10.0.0`；正式環境升級前應閱讀 changelog、在非 production 執行 plan。
+
+### 3.2 VM network interface
+
+概念：
+
+```hcl
+network_interface {
+  network    = module.network.network_self_link
+  subnetwork = module.network.subnets_self_links[0]
+}
+```
+
+實際 output names/index semantics 必須核對 module 10.0.0 文件。更穩健的正式設計應避免依賴容易因排序改變的 index，可建立清楚 map 或由 module outputs 按名稱選取。
+
+### 3.3 VPC 與 Subnet scope
+
+- VPC network：Global resource。
+- Subnet：Regional resource。
+- VM：Zonal resource；所用 Subnet 必須位於 VM zone 所屬 region。
+- Dynamic routes 的傳播範圍由 routing mode 決定；`GLOBAL` 與 Subnet 是否 regional 是不同概念。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| VPC network | Global | 跨 regions 存在的網路資源 |
+| Subnet | Regional | CIDR 與 region 綁定 |
+| Route | Global | 適用 VPC；dynamic routing 行為受 routing mode 影響 |
+| Compute Engine VM | Zonal | Subnet region 必須涵蓋 VM zone |
+| Registry module | Versioned package | Source/version 需明確固定與審查 |
+
+## 5. Cloud Shell / Terraform
+
+加入 Registry module 後：
+
+```bash
+terraform init -upgrade=false
+terraform validate
+terraform plan
+terraform apply
+```
+
+檢視 module resources：
+
+```bash
+terraform state list | grep 'module.network'
+terraform output
+```
+
+## 6. 認證考點
+
+- VPC global、Subnet regional、VM zonal。
+- Global dynamic routing 不會把 Subnet 變成 global。
+- Module 封裝重用設計；source/version 與 inputs/outputs 是介面。
+- Resource/module output reference 可建立隱含依賴，不需過度使用 `depends_on`。
+- CIDR ranges 不應重疊。
+
+## 7. 本章快速複習
+
+```text
+Registry module + pinned version → VPC(global) → Subnets(regional) → VMs(zonal)
+```
+
+---
+
+# Chapter 6 — Firewall Rule and Connectivity
+
+中文名稱：Firewall Rule 與連線驗證
+
+## 1. Learning Objectives
+
+- 以 Terraform 建立 `tf-firewall`。
+- 將 rule 綁到正確 VPC。
+- 理解 direction、source range、protocol/port。
+- 評估 `0.0.0.0/0` 的安全風險。
+
+## 2. 核心概念摘要
+
+Lab 要求：
+
+```hcl
+resource "google_compute_firewall" "tf-firewall" {
+  name    = "tf-firewall"
+  network = module.network.network_self_link
+
+  direction     = "INGRESS"
+  source_ranges = ["0.0.0.0/0"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+}
+```
+
+這是概念範例；network output name須核對指定 module version。
+
+## 3. 詳細知識點
+
+- `direction = "INGRESS"`：評估進入 VM network interfaces 的流量。
+- `source_ranges = ["0.0.0.0/0"]`：所有 IPv4 來源。
+- `allow tcp:80`：允許 HTTP port，不會自動安裝或啟動 Web server。
+- 未指定 target tags/service accounts 時，rule 可能套用到 VPC 中所有適用 instances。
+
+正式環境應優先縮小來源、使用 target tags 或 service accounts、設計 firewall policies，避免無必要地對全網 VM 開放網際網路流量。
+
+## 4. Resource Scope
+
+| Resource | Scope | 說明與影響 |
+|---|---|---|
+| VPC firewall rule | Global | 屬於特定 VPC，作用於符合 target 的 interfaces |
+| Source IPv4 range | Rule match condition | `0.0.0.0/0` 代表所有 IPv4 sources |
+| TCP port 80 | Transport port | 只允許封包；application 仍需監聽 |
+
+## 5. Google Cloud Console
+
+```text
+Console > VPC network > Firewall policies
+```
+
+可核對 rule 的 network、direction、priority、source ranges、targets 與 protocols/ports。Console 標籤可能更新。
+
+## 6. Cloud Shell / Terraform
+
+先檢視 network output/state：
+
+```bash
+terraform state list | grep google_compute_network
+terraform state show '<NETWORK_RESOURCE_ADDRESS>'
+```
+
+再 plan/apply：
+
+```bash
+terraform fmt -recursive
+terraform validate
+terraform plan
+terraform apply
+```
+
+## 7. 認證考點
+
+- Firewall rule 必須指向正確 VPC self link/ID。
+- Allow rule 不保證服務可用；仍要檢查 route、external/internal IP、OS firewall 與 application。
+- `0.0.0.0/0` 是廣泛開放，僅在需求成立且 target 最小化時使用。
+- Firewall Rule 為 stateful；允許方向的回程流量通常會自動允許。
+- VPC firewall rule 與 hierarchical/global network firewall policy 是不同管理層級。
+
+## 8. 本章快速複習
+
+```text
+Network + direction + source + target + protocol/port，五項一起判斷。
+```
+
+---
+
+# Chapter 7 — GSP345 Challenge Lab Workflow
+
+中文名稱：GSP345 挑戰研究室操作脈絡
+
+## 1. 動態值與作答原則
+
+公開頁面的 project、region、zone、bucket、VPC 與第三台 VM 名稱是動態模板，本文不虛構固定值。
+
+```bash
+export PROJECT_ID="$(gcloud config get-value project)"
+export REGION="<LAB_ASSIGNED_REGION>"
+export ZONE="<LAB_ASSIGNED_ZONE>"
+export BUCKET_NAME="<LAB_ASSIGNED_BUCKET_NAME>"
+export VPC_NAME="<LAB_ASSIGNED_VPC_NAME>"
+export THIRD_INSTANCE_NAME="<LAB_ASSIGNED_INSTANCE_NAME>"
+```
+
+### Task 1：Configuration files
+
+1. 建立 root files 與 `instances`、`storage` module directories。
+2. 在各 module 宣告所需 variables。
+3. 在 root 設定 Google provider 與 module calls。
+4. `terraform fmt -recursive && terraform init && terraform validate`。
+
+### Task 2：Import
+
+1. 從 Console 讀取兩台 VM 的真實屬性。
+2. 寫入相符 resource blocks。
+3. Import 到完整 child module addresses。
+4. `state show`、`plan`，審查後 apply。
+
+### Task 3：Remote backend
+
+1. Storage module 建立 bucket。
+2. Apply 後確認 bucket 存在。
+3. Root `terraform` block 加入 GCS backend 與 prefix。
+4. `terraform init -migrate-state`。
+
+### Task 4：Modify/update
+
+1. 兩台既有 VM 改為 `e2-standard-2`。
+2. 新增 Lab 指定名稱的第三台 VM，同為 `e2-standard-2`。
+3. Plan 特別看 stop/update/replacement 行為。
+4. Apply。
+
+### Task 5：Destroy
+
+1. 從 instances module 移除第三台 resource block。
+2. Plan 確認只刪除目標 VM。
+3. Apply。
+
+### Task 6：Registry module
+
+1. 加入 Network Module version `10.0.0`。
+2. 建立 global-routing VPC、`subnet-01`、`subnet-02`。
+3. 連接兩台 VM 至各自 Subnet。
+4. Init、plan、apply。
+
+### Task 7：Firewall
+
+1. 建立 `tf-firewall`。
+2. Network 參照 Registry module 建立的 VPC。
+3. Ingress、source `0.0.0.0/0`、TCP/80。
+4. Plan/apply。
+
+## 2. 每階段固定檢查
+
+```bash
+terraform fmt -recursive
+terraform validate
+terraform plan
+terraform apply
+terraform state list
+```
+
+Challenge Lab 指示每一節結束都要 plan/apply，否則評分器可能看不到只存在 configuration、尚未建立的資源。
+
+## 3. 常見錯誤
+
+| 錯誤／症狀 | 原因 | 處理方向 |
+|---|---|---|
+| `Module not installed` | 新增/變更 module 後未 init | `terraform init` |
+| `Resource already managed` | 同一 object 已在 state | `terraform state list`，確認 address |
+| Import 後 plan 大量變更 | Configuration 未對齊 remote object | `state show` + Console/provider docs，補正 HCL |
+| Backend migration 找不到 bucket | Bucket 尚未 apply 或名稱錯 | 先以 local state 建 bucket，再 migrate |
+| Bucket name conflict | Cloud Storage bucket name globally unique | 使用 Lab 指定名稱，核對 project/typo |
+| VM 更新失敗需停止 | 未允許 stopping update | 檢查 `allow_stopping_for_update` 與 downtime |
+| Registry module input error | Module version/inputs 不相容 | 固定 `10.0.0`，核對該版本 README |
+| VM 無法使用 Subnet | Zone 不屬於 Subnet region | 核對 zonal VM 與 regional Subnet |
+| Firewall 建立但無法連 | Network/target/route/IP/application 問題 | 沿完整封包路徑排查 |
+| Grading 不通過 | 名稱、prefix、CIDR、version 或 scope 不符 | 逐項比對當次 Lab dynamic values |
+
+---
+
+# 認證重點統整
+
+## ACE 重點
+
+### 情境題判斷表
+
+| 情境 | 優先做法 | 常見誤解 |
+|---|---|---|
+| 既有 VM 要保留並交由 Terraform 管理 | Matching configuration + import + plan | 不是先 destroy 再重建 |
+| 多人共管 infrastructure | 受保護的 remote backend | 不共享本機 state 檔 |
+| 重用公司網路標準 | Versioned module + inputs/outputs | 不複製貼上整包 resources |
+| 只停止管理、保留真實資源 | `terraform state rm`，並評估後續 plan | 移除 block 後 apply 會刪資源 |
+| 明確重建某 resource | `-replace=ADDRESS` 並審查 plan | 不優先使用過時 `taint` workflow |
+| 套用前確認變更 | `terraform plan` | `validate` 不會顯示完整 remote changes |
+| Module/provider/backend 有變動 | `terraform init` | `apply` 不會取代初始化 |
+| VM 接 custom subnet | Network global、Subnet regional、VM zonal且 region 相符 | Subnet 不是 global |
+| 開放 HTTP | Firewall allow TCP/80 + 正確 network/target/source | Rule 不會啟動 Web server |
+
+### 指令速記
+
+```text
+fmt       格式化
+init      backend/provider/module 初始化
+validate  configuration 內部檢查
+plan      預覽 create/update/replace/destroy
+apply     套用變更
+import    建立 existing object 的 state binding
+state     檢查或調整 state
+output    顯示 root module outputs
+```
+
+### Resource Scope 速查
+
+| Resource | Scope | 記憶方式 |
+|---|---|---|
+| VPC network | Global | 一個 VPC 可包含多 region Subnets |
+| Subnet | Regional | CIDR 與 region 綁定 |
+| Compute Engine VM | Zonal | Zone 必須屬於 Subnet region |
+| VPC Firewall Rule | Global | Rule 綁特定 VPC |
+| Cloud Storage bucket | Global namespace + location | 名稱 globally unique，資料有 location |
+| Terraform state | Backend-defined | 不屬 Google Cloud resource scope，但需安全集中管理 |
+
+### 最重要安全原則
+
+1. State 不進 Git，remote backend 採最小權限。
+2. Import 後先 plan，避免 minimal configuration 覆寫重要屬性。
+3. Apply 前確認 project、backend、workspace 與 destroy/replacement 數量。
+4. `force_destroy = true`、`0.0.0.0/0` 是 Lab 便利設定，不直接當 production defaults。
+5. 外部 modules/providers 固定版本並經過供應鏈與變更審查。
+
+## 教材與現行文件差異
+
+| 類型 | 內容 | 官方來源 |
+|---|---|---|
+| 教材內容 | 現行 GSP345 要求 `e2-standard-2`，Network Module `10.0.0`，並以移除 block 後 apply 刪除第三台 VM | [GSP345](https://www.skills.google/focuses/42740?parent=catalog) |
+| 教材內容 | 現行 Lab 說明 Terraform 不預裝於 Cloud Shell，需先安裝並驗證版本 | [GSP345 prerequisites](https://www.skills.google/focuses/42740?parent=catalog) |
+| 現行官方文件 | Google 建議 remote state 使用受保護的 Cloud Storage backend | [Store Terraform state](https://docs.cloud.google.com/docs/terraform/resource-management/store-state) |
+| 現行官方文件 | Import 後應由 Terraform 專門管理，避免 out-of-band changes | [Terraform operational best practices](https://docs.cloud.google.com/docs/terraform/best-practices/operations) |
+| 現行官方文件 | `terraform taint` 已不建議，明確 replacement 使用 `-replace` | [HashiCorp taint command](https://developer.hashicorp.com/terraform/cli/commands/taint) |
+| 備考建議 | ACE 不需背 GSP345 動態名稱，但應理解 import/state/module/scope/firewall 的判斷 | 推論，非官方考綱聲明 |
+
+## 待補材料與限制
+
+- 課程公開頁目前以 1 小時 45 分的 Challenge Lab 為核心，沒有公開逐章逐字稿。
+- Project、region、zone、bucket、VPC 與第三台 VM 名稱是 Lab session 動態值，本文保留占位符。
+- 使用者未提供實際 Cloud Shell records，本文沒有虛構 command output 或「我的實際操作」。
+- 若後續提供 GSP345 的 Lab Details、`.tf` files 或 terminal output，可再補成逐行 HCL 與實際錯誤排查版。
+
+---
+
+## 官方資料來源
+
+- [Build Infrastructure with Terraform on Google Cloud](https://www.skills.google/course_templates/636)
+- [GSP345：Build Infrastructure with Terraform on Google Cloud—Challenge Lab](https://www.skills.google/focuses/42740?parent=catalog)
+- [Google Cloud：Infrastructure as Code overview](https://docs.cloud.google.com/docs/terraform/iac-overview)
+- [Google Cloud：Import resources](https://docs.cloud.google.com/docs/terraform/resource-management/import)
+- [Google Cloud：Store state in Cloud Storage](https://docs.cloud.google.com/docs/terraform/resource-management/store-state)
+- [Google Cloud：Terraform security best practices](https://docs.cloud.google.com/docs/terraform/best-practices/security)
+- [Google Cloud：Terraform operational best practices](https://docs.cloud.google.com/docs/terraform/best-practices/operations)
+- [HashiCorp：terraform init](https://developer.hashicorp.com/terraform/cli/commands/init)
+- [HashiCorp：terraform plan](https://developer.hashicorp.com/terraform/cli/commands/plan)
+- [HashiCorp：terraform apply](https://developer.hashicorp.com/terraform/cli/commands/apply)
+- [HashiCorp：terraform import](https://developer.hashicorp.com/terraform/cli/commands/import)
+- [HashiCorp：terraform state](https://developer.hashicorp.com/terraform/cli/commands/state)
+- [HashiCorp：terraform taint（deprecated workflow）](https://developer.hashicorp.com/terraform/cli/commands/taint)
+- [Terraform Registry：Google Cloud Network Module](https://registry.terraform.io/modules/terraform-google-modules/network/google/latest)
+
+> Challenge Lab 作答以當次題目動態值、指定 module version 與評分條件為準；正式環境則需採完整 configuration、變更審查、最小權限與可復原的 state 管理流程。

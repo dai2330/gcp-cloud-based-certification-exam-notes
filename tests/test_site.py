@@ -30,6 +30,8 @@ LOGGING_MONITORING_COURSE = ROOT / "docs/courses/ace/logging-and-monitoring-in-g
 LOGGING_MONITORING_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Logging_and_Monitoring_in_Google_Cloud.source.txt"
 TERRAFORM_COURSE = ROOT / "docs/courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md"
 TERRAFORM_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Getting_Started_with_Terraform_for_Google_Cloud.source.txt"
+BUILD_TERRAFORM_COURSE = ROOT / "docs/courses/ace/build-infrastructure-with-terraform-on-google-cloud/build-infrastructure-with-terraform-on-google-cloud.md"
+BUILD_TERRAFORM_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Build_Infrastructure_with_Terraform_on_Google_Cloud.source.txt"
 GSP313_COURSE = ROOT / "docs/courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md"
 GSP313_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_GSP313_Implement_Load_Balancing_on_Compute_Engine_Challenge_Lab.source.txt"
 DEPLOY_KUBERNETES_APPS_COURSE = ROOT / "docs/courses/ace/deploy-kubernetes-applications-on-google-cloud/deploy-kubernetes-applications-on-google-cloud.md"
@@ -851,6 +853,85 @@ class TerraformGettingStartedCourseTests(unittest.TestCase):
         self.assertLess(homepage.index(previous_path), homepage.index(course_path))
         self.assertIn(f"../{course_path}", learning_path)
         self.assertLess(learning_path.index(f"../{previous_path}"), learning_path.index(f"../{course_path}"))
+
+
+class BuildInfrastructureTerraformCourseTests(unittest.TestCase):
+    def test_build_terraform_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(BUILD_TERRAFORM_COURSE.is_file())
+
+    def test_build_terraform_has_one_h1_seven_chapters_and_code_examples(self) -> None:
+        content = BUILD_TERRAFORM_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        chapter_h2s = [line for line in outside_fence_lines if re.match(r"^## Chapter [1-7] — .+$", line)]
+        h3s = [line for line in outside_fence_lines if re.match(r"^### (?!#).+$", line)]
+        h4s = [line for line in outside_fence_lines if re.match(r"^#### (?!#).+$", line)]
+        self.assertEqual(h1s, ["# Build Infrastructure with Terraform on Google Cloud"])
+        self.assertEqual(len(chapter_h2s), 7)
+        self.assertIn("## 認證重點統整", outside_fence_lines)
+        self.assertEqual(len(h3s), 56)
+        self.assertEqual(len(h4s), 27)
+        self.assertEqual(content.count("```mermaid"), 1)
+        self.assertEqual(content.count("```bash"), 13)
+        self.assertEqual(content.count("```hcl"), 11)
+        self.assertEqual(content.count("```text"), 13)
+
+    def test_build_terraform_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = BUILD_TERRAFORM_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = BUILD_TERRAFORM_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 940)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(
+                course_position,
+                len(normalized_course),
+                f"Original non-heading line {source_position} was removed: {source_line!r}",
+            )
+            course_position += 1
+
+    def test_build_terraform_is_grouped_and_linked_from_all_discovery_surfaces(self) -> None:
+        previous_path = "courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md"
+        course_path = "courses/ace/build-infrastructure-with-terraform-on-google-cloud/build-infrastructure-with-terraform-on-google-cloud.md"
+        following_path = "courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md"
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Terraform on Google Cloud:", config)
+        self.assertIn("Build Infrastructure with Terraform on Google Cloud:", config)
+        self.assertIn(f"Course Notes: {course_path}", config)
+        self.assertLess(config.index(previous_path), config.index(course_path))
+        self.assertLess(config.index(course_path), config.index(following_path))
+        self.assertIn(course_path, homepage)
+        self.assertLess(homepage.index(previous_path), homepage.index(course_path))
+        self.assertLess(homepage.index(course_path), homepage.index(following_path))
+        self.assertIn(f"../{course_path}", learning_path)
+        self.assertLess(learning_path.index(f"../{previous_path}"), learning_path.index(f"../{course_path}"))
+        self.assertLess(learning_path.index(f"../{course_path}"), learning_path.index(f"../{following_path}"))
 
 
 class Gsp313LoadBalancingChallengeLabTests(unittest.TestCase):
