@@ -103,6 +103,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[AI Infrastructure: Deployment Types](courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -250,6 +259,22 @@ hide:
 - **包含：** gcloud、TPU 選型、4 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · AI INFRASTRUCTURE</span>
+
+### AI Infrastructure: Deployment Types
+
+比較 Compute Engine、GKE 與受管 AI 平台，涵蓋 AI／HPC deployment model、GKE inference、accelerator、網路、儲存與擴縮選型。
+
+- **3 個 Chapter**
+- **文件校正：2026-08-24**
+- **包含：** gcloud、GKE、4 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md)
 
 </article>
 

@@ -66,6 +66,7 @@ nav:
           - AI Infrastructure:
               - Cloud GPUs: courses/ace/ai-infrastructure/ai-infrastructure-cloud-gpus.md
               - Cloud TPUs: courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md
+              - Deployment Types: courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md
 
 plugins:
   - search:

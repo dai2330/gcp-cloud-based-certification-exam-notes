@@ -63,6 +63,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Cloud TPUs](../courses/ace/ai-infrastructure/ai-infrastructure-cloud-tpus.md){ .md-button .md-button--primary }
 
+### 10. AI Infrastructure: Deployment Types
+
+比較 Compute Engine、GKE 與受管 AI 平台的責任邊界，掌握 AI／HPC deployment model、GKE inference、accelerator、網路、儲存與擴縮選型。
+
+[開始閱讀 Deployment Types](../courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。
