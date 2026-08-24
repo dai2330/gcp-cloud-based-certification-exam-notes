@@ -32,6 +32,8 @@ TERRAFORM_COURSE = ROOT / "docs/courses/ace/getting-started-with-terraform-for-g
 TERRAFORM_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Getting_Started_with_Terraform_for_Google_Cloud.source.txt"
 GSP313_COURSE = ROOT / "docs/courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md"
 GSP313_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_GSP313_Implement_Load_Balancing_on_Compute_Engine_Challenge_Lab.source.txt"
+DEPLOY_KUBERNETES_APPS_COURSE = ROOT / "docs/courses/ace/deploy-kubernetes-applications-on-google-cloud/deploy-kubernetes-applications-on-google-cloud.md"
+DEPLOY_KUBERNETES_APPS_SOURCE_FIXTURE = ROOT / "tests/fixtures/ACE_Deploy_Kubernetes_Applications_on_Google_Cloud.source.txt"
 
 
 def read(relative: str) -> str:
@@ -918,6 +920,73 @@ class Gsp313LoadBalancingChallengeLabTests(unittest.TestCase):
         self.assertIn("Implement Load Balancing on Compute Engine:", config)
         self.assertIn(f"Challenge Lab (GSP313): {course_path}", config)
         self.assertLess(config.index(previous_path), config.index("Implement Load Balancing on Compute Engine:"))
+        self.assertIn(course_path, homepage)
+        self.assertLess(homepage.index(previous_path), homepage.index(course_path))
+        self.assertIn(f"../{course_path}", learning_path)
+        self.assertLess(learning_path.index(f"../{previous_path}"), learning_path.index(f"../{course_path}"))
+
+
+class DeployKubernetesApplicationsCourseTests(unittest.TestCase):
+    def test_deploy_kubernetes_apps_uses_normalized_one_page_path(self) -> None:
+        self.assertTrue(DEPLOY_KUBERNETES_APPS_COURSE.is_file())
+
+    def test_deploy_kubernetes_apps_has_one_h1_five_chapters_and_code_examples(self) -> None:
+        content = DEPLOY_KUBERNETES_APPS_COURSE.read_text(encoding="utf-8")
+        outside_fence_lines: list[str] = []
+        inside_fence = False
+        for line in content.splitlines():
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+            elif not inside_fence:
+                outside_fence_lines.append(line)
+
+        h1s = [line for line in outside_fence_lines if re.match(r"^# (?!#).+$", line)]
+        chapter_h2s = [line for line in outside_fence_lines if re.match(r"^## Chapter [1-5] — .+$", line)]
+        self.assertEqual(h1s, ["# Deploy Kubernetes Applications on Google Cloud"])
+        self.assertEqual(len(chapter_h2s), 5)
+        self.assertIn("## 認證重點統整", outside_fence_lines)
+        self.assertEqual(content.count("```mermaid"), 2)
+        self.assertEqual(content.count("```bash"), 29)
+        self.assertEqual(content.count("```dockerfile"), 1)
+        self.assertEqual(content.count("```yaml"), 2)
+        self.assertEqual(content.count("```text"), 11)
+
+    def test_deploy_kubernetes_apps_preserves_every_original_non_heading_line_in_order(self) -> None:
+        source_lines = DEPLOY_KUBERNETES_APPS_SOURCE_FIXTURE.read_text(encoding="utf-8").splitlines()
+        course_lines = DEPLOY_KUBERNETES_APPS_COURSE.read_text(encoding="utf-8").splitlines()
+
+        def normalize_layout(line: str) -> str:
+            return re.sub(r"<br>$", "", line).rstrip()
+
+        original_content: list[str] = []
+        inside_fence = False
+        for line in source_lines:
+            if line.startswith("```"):
+                inside_fence = not inside_fence
+                original_content.append(normalize_layout(line))
+            elif inside_fence or not re.match(r"^#{1,6} ", line):
+                original_content.append(normalize_layout(line))
+
+        normalized_course = [normalize_layout(line) for line in course_lines]
+        self.assertEqual(len(source_lines), 862)
+
+        course_position = 0
+        for source_position, source_line in enumerate(original_content, start=1):
+            while course_position < len(normalized_course) and normalized_course[course_position] != source_line:
+                course_position += 1
+            self.assertLess(course_position, len(normalized_course), f"Original non-heading line {source_position} was removed: {source_line!r}")
+            course_position += 1
+
+    def test_deploy_kubernetes_apps_is_linked_from_all_discovery_surfaces(self) -> None:
+        previous_path = "courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md"
+        course_path = "courses/ace/deploy-kubernetes-applications-on-google-cloud/deploy-kubernetes-applications-on-google-cloud.md"
+        config = read("mkdocs.yml")
+        homepage = read("docs/index.md")
+        learning_path = read("docs/ace/learning-path.md")
+
+        self.assertIn("Deploy Kubernetes Applications on Google Cloud:", config)
+        self.assertIn(f"Course Notes: {course_path}", config)
+        self.assertLess(config.index(previous_path), config.index("Deploy Kubernetes Applications on Google Cloud:"))
         self.assertIn(course_path, homepage)
         self.assertLess(homepage.index(previous_path), homepage.index(course_path))
         self.assertIn(f"../{course_path}", learning_path)

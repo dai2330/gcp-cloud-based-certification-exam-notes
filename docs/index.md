@@ -139,6 +139,15 @@ hide:
   <span class="learning-path__status">可閱讀</span>
 </div>
 
+<div class="learning-path__rail">
+  <span class="learning-path__node learning-path__node--ready" aria-hidden="true"></span>
+  <div>
+    <strong>目前收錄</strong>
+    <p>[Deploy Kubernetes Applications on Google Cloud](courses/ace/deploy-kubernetes-applications-on-google-cloud/deploy-kubernetes-applications-on-google-cloud.md)</p>
+  </div>
+  <span class="learning-path__status">可閱讀</span>
+</div>
+
 </section>
 
 ## 已收錄課程
@@ -350,6 +359,22 @@ hide:
 - **包含：** gcloud、28 個 Bash 區塊、2 張 Mermaid、ACE 考點
 
 [進入課程 →](courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md)
+
+</article>
+
+<article class="course-card" markdown>
+
+<span class="course-card__meta">ACE · KUBERNETES</span>
+
+### Deploy Kubernetes Applications on Google Cloud
+
+涵蓋 Dockerfile、Artifact Registry、GKE、kubectl、Kubernetes Deployment、Service、LoadBalancer 與 GSP318 Challenge Lab。
+
+- **5 個 Chapter**
+- **文件校正：2026-08-25**
+- **包含：** Docker、gcloud、kubectl、2 張 Mermaid、ACE 考點
+
+[進入課程 →](courses/ace/deploy-kubernetes-applications-on-google-cloud/deploy-kubernetes-applications-on-google-cloud.md)
 
 </article>
 

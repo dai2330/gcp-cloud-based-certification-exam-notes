@@ -87,6 +87,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 GSP313 Challenge Lab](../courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md){ .md-button .md-button--primary }
 
+### 14. Deploy Kubernetes Applications on Google Cloud
+
+掌握 Dockerfile、Artifact Registry、GKE、kubectl、Kubernetes Deployment、Service、LoadBalancer 與 GSP318 Challenge Lab 的完整部署鏈。
+
+[開始閱讀 Deploy Kubernetes Applications](../courses/ace/deploy-kubernetes-applications-on-google-cloud/deploy-kubernetes-applications-on-google-cloud.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

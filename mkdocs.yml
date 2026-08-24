@@ -73,6 +73,8 @@ nav:
               - Course Notes: courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md
           - Implement Load Balancing on Compute Engine:
               - Challenge Lab (GSP313): courses/ace/implement-load-balancing-on-compute-engine/implement-load-balancing-on-compute-engine-challenge-lab.md
+          - Deploy Kubernetes Applications on Google Cloud:
+              - Course Notes: courses/ace/deploy-kubernetes-applications-on-google-cloud/deploy-kubernetes-applications-on-google-cloud.md
 
 plugins:
   - search:
