@@ -75,6 +75,12 @@ description: 依現有課程內容安排的 Associate Cloud Engineer 閱讀順�
 
 [開始閱讀 Logging and Monitoring](../courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md){ .md-button .md-button--primary }
 
+### 12. Getting Started with Terraform for Google Cloud
+
+掌握 Infrastructure as Code、Terraform workflow、HCL、資源依賴、variables、outputs、modules、state 與 Cloud Storage remote backend。
+
+[開始閱讀 Terraform for Google Cloud](../courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md){ .md-button .md-button--primary }
+
 ## 建議閱讀順序
 
 1. **Chapter 3 — Virtual Networks**：建立 VPC、subnet、route 與 firewall rule 的資源邊界觀念。

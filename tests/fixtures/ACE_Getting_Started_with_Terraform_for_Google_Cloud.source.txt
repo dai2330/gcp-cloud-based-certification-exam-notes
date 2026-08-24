@@ -1,0 +1,599 @@
+# Getting Started with Terraform for Google Cloud｜ACE 證照重點筆記
+
+> 課程：Google Cloud Skills Boost `course_templates/443`
+> 課程定位：Terraform 與 Infrastructure as Code（IaC）入門
+> 適用證照：Associate Cloud Engineer（ACE）
+> 整理日期：2026-08-24
+> 語言：繁體中文（台灣）
+
+---
+
+## 1. 課程定位與 ACE 關聯
+
+本課程教你用 Terraform 描述、建立與管理 Google Cloud 基礎架構。官方課綱包含 7 個模組，約 6～6.5 小時，核心涵蓋 HCL、資源與依賴、變數與輸出、模組、Terraform state，以及以 Cloud Storage 建立遠端 backend。
+
+對 ACE 而言，重點不是背誦所有 HCL 語法，而是能判斷：
+
+- 如何以可重複、可審查的方式部署 Google Cloud 資源。
+- `init`、`validate`、`plan`、`apply`、`destroy` 各自的用途。
+- Terraform 如何藉由參照建立隱含依賴。
+- 為何 state 是關鍵資料，以及為何團隊應使用受保護的遠端 backend。
+- 如何用變數、輸出值與 modules 重用設定。
+- 如何避免把憑證、密碼或敏感 state 放進版本控制。
+
+> **課程勘誤提醒**：Coursera 的 Module 1 說明文字誤植成另一門課程名稱；實際課名與後續模組均為 Terraform for Google Cloud。
+
+### 學習優先級
+
+| 主題 | ACE 優先級 | 你應該會什麼 |
+|---|---:|---|
+| Terraform 基本工作流程 | ★★★ | 看懂執行順序與每個指令的效果 |
+| Resource、變數、輸出 | ★★★ | 看懂基本 HCL，知道值如何傳遞 |
+| 依賴關係 | ★★★ | 優先使用資源參照；知道 `depends_on` 的時機 |
+| State 與遠端 backend | ★★★ | 知道 state 的角色、安全風險與團隊協作方式 |
+| Modules | ★★☆ | 知道 root/child module、輸入與輸出 |
+| Registry / Cloud Foundation Toolkit | ★★☆ | 知道可重用既有模組，不必從零撰寫 |
+| 進階 HCL 語法 | ★☆☆ | 本課程與 ACE 不需鑽研到語言專家程度 |
+
+---
+
+## 2. 課程模組地圖
+
+| 模組 | 主題 | 內容與實作 |
+|---|---|---|
+| 1 | Course Introduction | 課程目標與結構 |
+| 2 | Introduction to Terraform for Google Cloud | IaC、Terraform 功能、使用方式 |
+| 3 | Terms and Concepts | HCL、設定檔、常用命令、Validator；Lab：Infrastructure as Code with Terraform |
+| 4 | Writing Infrastructure Code for Google Cloud | Resources、meta-arguments、依賴、變數、輸出、Registry、Cloud Foundation Toolkit；Lab：Creating Resource Dependencies with Terraform |
+| 5 | Organizing and Reusing Configuration with Terraform Modules | Modules、重用、輸入與輸出、最佳實務；Lab：Automating the Deployment of Infrastructure Using Terraform |
+| 6 | Introduction to Terraform State | State 儲存、遠端 backend、最佳實務；Lab：Creating a Remote Backend |
+| 7 | Course Summary | 全課回顧 |
+
+---
+
+## 3. Infrastructure as Code（IaC）
+
+IaC 是以程式碼描述基礎架構的期望狀態。設定檔可以進入 Git，經過審查、測試與自動化流程，再由工具建立或修改真實資源。
+
+### 主要價值
+
+- **一致性**：相同設定可重複建立相似環境。
+- **可追蹤性**：Git 歷史能記錄誰改了什麼。
+- **可審查性**：套用前先看 `terraform plan`。
+- **自動化**：可接 CI/CD 或 Cloud Build。
+- **模組化**：以 modules 封裝共同架構與組織標準。
+- **減少手動錯誤**：避免逐項點選 Console 造成環境差異。
+
+Terraform 採宣告式做法：描述「結果要長什麼樣」，Terraform 再比較設定、state 與實際環境，提出必要變更。
+
+### 三個需要分清楚的狀態
+
+| 名稱 | 意義 |
+|---|---|
+| Configuration | `.tf` 檔中宣告的期望狀態 |
+| State | Terraform 記錄的資源對應與已知屬性 |
+| Real infrastructure | Google Cloud 中真正存在的資源 |
+
+`terraform plan` 的價值，就是根據這三者推導出新增、修改或刪除動作。若有人繞過 Terraform 在 Console 手動改資源，下一次 plan 可能偵測到 drift（漂移）。
+
+---
+
+## 4. Terraform 核心組成
+
+### Provider
+
+Provider 是 Terraform 與外部 API 溝通的外掛。Google Cloud 通常使用 `hashicorp/google` provider。
+
+```hcl
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+```
+
+版本約束可提升可重現性；實際版本應依組織測試結果選定，不要盲目複製範例版本。
+
+### Resource
+
+Resource 代表由 Terraform 管理的基礎架構物件。
+
+```hcl
+resource "google_compute_network" "vpc" {
+  name                    = "ace-vpc"
+  auto_create_subnetworks = false
+}
+```
+
+- `google_compute_network`：resource type。
+- `vpc`：Terraform 設定內的本地名稱。
+- `ace-vpc`：Google Cloud 中的資源名稱。
+- 參照格式：`google_compute_network.vpc.id`。
+
+### Data source
+
+Data source 用來讀取既有資料，而不是建立新資源。
+
+```hcl
+data "google_compute_image" "debian" {
+  family  = "debian-12"
+  project = "debian-cloud"
+}
+```
+
+### 常見 block
+
+| Block | 用途 |
+|---|---|
+| `terraform` | Terraform 與 provider 版本、backend 設定 |
+| `provider` | Provider 的 project、region 等預設值 |
+| `resource` | 建立及管理資源 |
+| `data` | 讀取現有資料 |
+| `variable` | 定義輸入參數 |
+| `locals` | 設定檔內部重用的運算值 |
+| `output` | 將結果輸出給使用者或其他 module |
+| `module` | 呼叫可重用的 Terraform module |
+
+---
+
+## 5. 標準工作流程與指令
+
+```text
+撰寫設定 → fmt → init → validate → plan → apply → 持續維護
+```
+
+| 指令 | 作用 | ACE 易錯點 |
+|---|---|---|
+| `terraform fmt` | 統一 HCL 格式 | 不會驗證資源是否可建立 |
+| `terraform init` | 初始化工作目錄、下載 provider/module、設定 backend | 新專案或 backend/provider 改變後要執行 |
+| `terraform validate` | 驗證設定語法與內部一致性 | 不等於實際部署測試 |
+| `terraform plan` | 預覽執行計畫 | 先審查新增、修改、刪除；不保證 apply 時環境完全沒變 |
+| `terraform apply` | 套用變更 | 可能建立、更新或刪除資源 |
+| `terraform show` | 顯示 state 或儲存的 plan | 用於檢視，不是變更資源 |
+| `terraform output` | 顯示 root module 輸出 | 可供腳本取值，但避免輸出祕密 |
+| `terraform destroy` | 刪除設定管理的資源 | 高風險、具破壞性，執行前務必確認範圍 |
+
+建議操作：
+
+```bash
+terraform fmt -check
+terraform init
+terraform validate
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+儲存 plan 能讓審查後套用相同計畫，但仍須妥善保護檔案，因為 plan 可能包含敏感資訊。
+
+> `terraform refresh` 已被 HashiCorp 標示為過時做法；需要只更新 state 時，優先使用 `terraform plan -refresh-only`，確認後再 `terraform apply -refresh-only`。
+
+---
+
+## 6. Resources、依賴與 meta-arguments
+
+### 隱含依賴：優先使用
+
+當一個 resource 參照另一個 resource 的屬性時，Terraform 會建立 dependency graph，並按依賴順序執行。
+
+```hcl
+resource "google_compute_subnetwork" "subnet" {
+  name          = "ace-subnet"
+  ip_cidr_range = "10.10.0.0/24"
+  region        = var.region
+  network       = google_compute_network.vpc.id
+}
+```
+
+`subnet.network` 直接參照 VPC 的 `id`，因此 Terraform 知道應先建立 VPC。這比手動指定順序更可靠。
+
+### 顯式依賴：只在隱藏依賴時使用
+
+```hcl
+depends_on = [google_project_service.compute]
+```
+
+只有當依賴無法從屬性參照推導時才使用 `depends_on`。過度使用會使計畫更保守、降低平行處理，並讓設定難以理解。
+
+### 常見 meta-arguments
+
+| 語法 | 用途 |
+|---|---|
+| `count` | 以整數建立多個實例，索引為數字 |
+| `for_each` | 依 map/set 建立多個實例，鍵值較穩定易讀 |
+| `depends_on` | 宣告無法從參照推導的依賴 |
+| `lifecycle` | 控制替換、刪除保護或忽略特定變動等生命週期行為 |
+| `provider` | 指定 resource 使用哪個 provider 設定 |
+
+`prevent_destroy = true` 能降低誤刪風險，但不是 IAM 或備份的替代品；真正需要移除資源時也必須先調整此設定。
+
+---
+
+## 7. Variables 與 Outputs
+
+### 輸入變數
+
+```hcl
+variable "project_id" {
+  description = "Target Google Cloud project ID"
+  type        = string
+}
+
+variable "region" {
+  description = "Default deployment region"
+  type        = string
+  default     = "asia-east1"
+}
+```
+
+變數的值可來自命令列、`.tfvars`、環境變數或預設值。應明確宣告 `type` 與 `description`，必要時加上 validation。
+
+```hcl
+variable "environment" {
+  type = string
+
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment 必須是 dev、staging 或 prod。"
+  }
+}
+```
+
+### 輸出值
+
+```hcl
+output "network_id" {
+  description = "VPC network ID"
+  value       = google_compute_network.vpc.id
+}
+```
+
+Output 可將 root module 的資訊顯示給使用者，也可讓 child module 將屬性提供給呼叫端。
+
+### 敏感值陷阱
+
+```hcl
+variable "api_token" {
+  type      = string
+  sensitive = true
+}
+```
+
+`sensitive = true` 主要是遮蔽 CLI/UI 顯示；敏感內容仍可能存在 state 或 plan。不要把祕密硬編碼在 `.tf` 或提交 `.tfvars`，應採 Secret Manager、短效憑證及最小權限設計。
+
+---
+
+## 8. Terraform Modules
+
+Module 是一組放在同一目錄、共同運作的 Terraform 設定：
+
+- **Root module**：目前執行 `terraform` 指令的主要設定。
+- **Child module**：由 root 或其他 module 呼叫的可重用單元。
+- **Module source**：可為本機路徑、Terraform Registry 或版本控制來源。
+
+```hcl
+module "network" {
+  source  = "terraform-google-modules/network/google"
+  version = "~> 10.0"
+
+  project_id   = var.project_id
+  network_name = "ace-vpc"
+  subnets = [{
+    subnet_name   = "ace-subnet"
+    subnet_ip     = "10.10.0.0/24"
+    subnet_region = var.region
+  }]
+}
+```
+
+### Modules 的好處
+
+- 封裝經過測試的架構模式。
+- 統一命名、標籤、安全與網路標準。
+- 透過 input variables 參數化。
+- 透過 outputs 暴露必要資訊。
+- 減少複製貼上與環境差異。
+
+### 使用外部 module 前檢查
+
+- 來源、維護者與版本是否可信。
+- 是否固定 `version`，避免未審查的重大變更。
+- module 會建立哪些資源、需要哪些 IAM 權限。
+- 升級前閱讀 release notes，先在非正式環境執行 plan。
+
+Google Cloud Foundation Toolkit 提供可重用的 Terraform 藍圖與 modules；概念上適合將組織最佳實務標準化，但仍需審查內容及版本。
+
+---
+
+## 9. Terraform State 與 Remote Backend
+
+### State 的角色
+
+Terraform 預設把 state 存在本機 `terraform.tfstate`。State 記錄 Terraform resource address 與真實雲端資源之間的綁定，也包含依賴與部分屬性資料。
+
+State 不是普通快取：遺失、洩漏或被多人同時錯誤修改，都可能造成嚴重問題。
+
+### 為何團隊要使用遠端 backend
+
+- 團隊共用一致 state。
+- 避免 state 被提交進 Git。
+- backend 可提供鎖定機制，降低同時寫入風險。
+- Cloud Storage 可搭配 IAM、加密、稽核與 Object Versioning。
+- 集中保護與復原比散落在個人電腦更容易。
+
+```hcl
+terraform {
+  backend "gcs" {
+    bucket = "my-terraform-state-bucket"
+    prefix = "envs/prod"
+  }
+}
+```
+
+Backend block 通常不能直接使用一般 input variables。建立 state bucket 後再初始化；若 backend 設定改變，通常需重新執行 `terraform init`，並謹慎處理 state migration 提示。
+
+### State 安全最佳實務
+
+- State bucket 與工作負載資源適度隔離。
+- 僅授權部署系統與少數管理者存取。
+- 啟用 Object Versioning 以利誤刪或損毀復原。
+- 設定 lifecycle 管理舊版本成本。
+- 不把 state、plan、含祕密的 `.tfvars` 提交到 Git。
+- 不手動編輯 state JSON；必要時使用 `terraform state` 指令。
+- 自動化流程使用專用 service account 與最小權限。
+
+### `destroy`、`state rm` 與 `import` 的差異
+
+| 動作 | 真實資源 | State 綁定 | 典型用途 |
+|---|---|---|---|
+| `terraform destroy` | 刪除 | 移除 | 拆除 Terraform 管理的環境 |
+| `terraform state rm ADDRESS` | 保留 | 移除 | 讓 Terraform 停止管理資源；高風險，後續 plan 可能重建 |
+| `terraform import ADDRESS ID` | 保留 | 新增 | 把既有資源納入 Terraform 管理 |
+
+Import 範例：
+
+```bash
+terraform import google_storage_bucket.sample sample-project/my-bucket
+```
+
+Import 後仍需確保 HCL 設定與真實資源一致，先執行 plan 並審查。Google 建議資源納管後，應專由 Terraform 管理，避免同時從 Console 任意修改。
+
+---
+
+## 10. Google Cloud 驗證與專案設定
+
+本機互動式開發通常使用 Application Default Credentials（ADC）：
+
+```bash
+gcloud auth application-default login
+```
+
+Cloud Shell 已整合 Google Cloud CLI 與目前工作階段身分，適合課程 Lab。正式自動化不應依賴個人帳號，而應使用部署專用 service account、Workload Identity Federation 或執行環境附加的服務帳戶，並遵循最小權限。
+
+### 常見除錯順序
+
+1. 確認 active account 與 ADC 是否正確。
+2. 確認目標 project ID、region、zone。
+3. 確認所需 API 已啟用。
+4. 確認執行身分具備必要 IAM 權限。
+5. 執行 `terraform validate` 排除設定問題。
+6. 執行 `terraform plan`，閱讀 provider 回傳的實際錯誤。
+
+不要把 service account key JSON 寫進 provider block 或版本控制。
+
+---
+
+## 11. 三個 Lab 的操作脈絡
+
+### Lab 1：Infrastructure as Code with Terraform
+
+目標是體驗完整生命週期：建立設定、初始化、產生 plan、apply、修改設定、再次 apply，最後 destroy。
+
+操作時要觀察：
+
+- `.terraform.lock.hcl` 用於鎖定 provider 相依版本，通常應提交 Git。
+- `.terraform/` 是本機工作資料，通常不提交。
+- `terraform.tfstate*` 不應提交。
+- plan 中 `+`、`~`、`-` 分別代表建立、就地更新與刪除；`-/+` 常代表替換。
+
+### Lab 2：Creating Resource Dependencies with Terraform
+
+目標是用資源屬性參照形成隱含依賴。考試情境若問如何確保 subnet 在 VPC 後建立，通常應讓 subnet 參照 network resource，而不是依賴人工執行順序。
+
+### Lab 3：Automating the Deployment of Infrastructure Using Terraform
+
+目標是使用 modules 重用設定，以 inputs 傳入專案與區域等差異，再透過 outputs 取回結果。應關注 module 版本、來源與權限範圍。
+
+### Lab 4：Creating a Remote Backend
+
+目標是把本機 state 遷移至 Cloud Storage backend。關注：
+
+- Bucket 名稱全域唯一。
+- Backend bucket 應先建立並妥善授權。
+- Object Versioning 可協助復原，但會增加儲存成本。
+- 切換 backend 後，確認 state 已遷移且團隊使用同一 backend/prefix。
+
+---
+
+## 12. ACE 情境題判斷表
+
+| 題目線索 | 優先判斷 |
+|---|---|
+| 套用前要確認影響 | `terraform plan` |
+| 新工作目錄或下載 provider | `terraform init` |
+| 檢查設定語法與一致性 | `terraform validate` |
+| 多人共同管理同一環境 | 受保護的 GCS remote backend + 最小權限 |
+| 需要重複建立 dev/staging/prod 架構 | 可重用 module + variables；各環境分離 state |
+| 需要傳出資源 ID/IP | `output` |
+| 資源 B 使用資源 A 的 ID | 屬性參照形成隱含依賴 |
+| 依賴無法由任何屬性參照看出 | 謹慎使用 `depends_on` |
+| 現有資源要納入 Terraform | 撰寫相符設定後 import，審查 plan |
+| 不刪真實資源但停止 Terraform 管理 | `terraform state rm`，先評估後果 |
+| state 含敏感資訊 | 限制 backend IAM；不得放 Git |
+| 自動化部署需要認證 | 專用 service account / federation，最小權限，不用長效金鑰 |
+
+---
+
+## 13. 常見錯誤與陷阱
+
+1. **把 `plan` 當作 apply**：plan 只提出執行計畫。
+2. **把 `validate` 當作權限檢查**：validate 不保證帳號有權建立資源。
+3. **手動指定順序**：Terraform 依 dependency graph，不依檔案上下順序。
+4. **過度使用 `depends_on`**：能用屬性參照就不要額外宣告。
+5. **把 `sensitive = true` 當作加密**：它主要是遮蔽顯示，state 仍需保護。
+6. **提交 state 到 Git**：state 可能含敏感資料且多人寫入會衝突。
+7. **多人使用各自的本機 state**：可能重複建立、誤刪或互相覆蓋。
+8. **修改 Console 後不看 plan**：會造成 drift，應回到 IaC 流程。
+9. **未固定 module/provider 版本**：上游更新可能帶來非預期變更。
+10. **把 `state rm` 當作刪除資源**：它只移除管理綁定。
+11. **直接執行 `destroy`**：先確認 workspace、backend、project 與 plan 範圍。
+12. **把 production 與 development 共用同一 state**：應隔離環境與權限。
+
+---
+
+## 14. 考前速記
+
+### 一句話版本
+
+- **IaC**：用可版本控制的程式碼宣告基礎架構。
+- **Provider**：Terraform 與 Google Cloud API 的橋樑。
+- **Resource**：由 Terraform 建立和管理的物件。
+- **Variable**：讓設定可參數化。
+- **Output**：把資源屬性傳給使用者或其他 module。
+- **Module**：可重用、可版本化的設定集合。
+- **State**：Terraform 對資源綁定與屬性的關鍵紀錄。
+- **Backend**：state 的儲存方式與位置。
+- **Plan**：套用前的變更預覽。
+- **Implicit dependency**：由 resource attribute reference 自動推導。
+
+### 五分鐘複習流程
+
+```text
+init：準備工作目錄
+validate：檢查設定
+plan：預覽變更
+apply：執行變更
+destroy：拆除資源
+```
+
+### 最重要的安全原則
+
+```text
+先 plan，再 apply；state 不進 Git；敏感資料不硬編碼；自動化採最小權限。
+```
+
+---
+
+## 15. 自我測驗
+
+### 題目 1
+
+團隊要共同管理 production，哪一種設計最適合？
+
+A. 每人保存一份 `terraform.tfstate`
+B. 把 state 提交到公開 Git repository
+C. 使用限制 IAM 的 Cloud Storage remote backend
+D. 每次部署前刪除 state
+
+<details>
+<summary>答案</summary>
+
+**C。** 遠端 backend 讓團隊共用一致 state，並能運用 IAM、鎖定與版本管理；state 不應提交 Git。
+</details>
+
+### 題目 2
+
+Subnet 的 `network` 參數直接使用 `google_compute_network.vpc.id`，這會產生什麼效果？
+
+A. Terraform 忽略 VPC
+B. 建立隱含依賴，先處理 VPC
+C. 強制刪除 VPC
+D. 自動建立另一個 project
+
+<details>
+<summary>答案</summary>
+
+**B。** 屬性參照讓 Terraform 建立 dependency graph。
+</details>
+
+### 題目 3
+
+哪個指令最適合在套用前預覽可能的建立、修改與刪除？
+
+A. `terraform init`
+B. `terraform fmt`
+C. `terraform plan`
+D. `terraform output`
+
+<details>
+<summary>答案</summary>
+
+**C。** `plan` 會提出執行計畫；仍應仔細閱讀替換與刪除動作。
+</details>
+
+### 題目 4
+
+`sensitive = true` 是否代表祕密不會出現在 state？
+
+A. 是
+B. 否
+
+<details>
+<summary>答案</summary>
+
+**B。** 它主要遮蔽一般輸出；state 和 plan 仍可能含敏感內容，必須控制存取。
+</details>
+
+### 題目 5
+
+想把既有 Cloud Storage bucket 納入 Terraform 管理，最合理的流程為何？
+
+A. 直接 destroy 後重建
+B. 建立相符 HCL、import，再審查 plan
+C. 只執行 `terraform fmt`
+D. 把 bucket 名稱寫進 output 即可
+
+<details>
+<summary>答案</summary>
+
+**B。** Import 建立 state 綁定，設定仍需描述該資源；後續應以 Terraform 為主要管理介面。
+</details>
+
+---
+
+## 16. 官方延伸閱讀與資料來源
+
+### 課程來源
+
+- [Google Cloud Skills Boost：Getting Started with Terraform for Google Cloud](https://www.cloudskillsboost.google/course_templates/443)
+- [Coursera：完整 7 模組課綱](https://www.coursera.org/learn/getting-started-with-terraform-for-google-cloud)
+
+### Google Cloud 官方文件
+
+- [Infrastructure as Code overview](https://docs.cloud.google.com/docs/terraform/iac-overview)
+- [Authenticate for Terraform](https://docs.cloud.google.com/docs/terraform/authentication)
+- [Store Terraform state in Cloud Storage](https://docs.cloud.google.com/docs/terraform/resource-management/store-state)
+- [Terraform security best practices](https://docs.cloud.google.com/docs/terraform/best-practices/security)
+- [General style and structure guidelines](https://docs.cloud.google.com/docs/terraform/best-practices/general-style-structure)
+- [Root module guidelines](https://docs.cloud.google.com/docs/terraform/best-practices/root-modules)
+- [Import existing Google Cloud resources](https://docs.cloud.google.com/docs/terraform/resource-management/import)
+- [Manage infrastructure as code with GitOps](https://docs.cloud.google.com/docs/terraform/resource-management/managing-infrastructure-as-code)
+
+### HashiCorp 官方文件
+
+- [Terraform CLI overview](https://developer.hashicorp.com/terraform/cli/commands)
+- [Initialize a working directory：terraform init](https://developer.hashicorp.com/terraform/cli/commands/init)
+- [Create an execution plan：terraform plan](https://developer.hashicorp.com/terraform/cli/commands/plan)
+- [Apply changes：terraform apply](https://developer.hashicorp.com/terraform/cli/commands/apply)
+- [Destroy infrastructure：terraform destroy](https://developer.hashicorp.com/terraform/cli/commands/destroy)
+- [Terraform workflow](https://developer.hashicorp.com/terraform/cli/run)
+- [Refresh-only mode與已過時的 refresh 指令](https://developer.hashicorp.com/terraform/cli/commands/refresh)
+
+> 本筆記以課程公開課綱為章節骨架，並用 Google Cloud 與 HashiCorp 官方文件補足現行操作與安全最佳實務。雲端產品、provider 與考試範圍會更新；考前請再核對最新官方 ACE exam guide 與文件。

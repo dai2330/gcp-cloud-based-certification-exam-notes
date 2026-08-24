@@ -69,6 +69,8 @@ nav:
               - Deployment Types: courses/ace/ai-infrastructure/ai-infrastructure-deployment-types.md
           - Logging and Monitoring in Google Cloud:
               - Course Notes: courses/ace/logging-and-monitoring-in-google-cloud/logging-and-monitoring-in-google-cloud.md
+          - Getting Started with Terraform for Google Cloud:
+              - Course Notes: courses/ace/getting-started-with-terraform-for-google-cloud/getting-started-with-terraform-for-google-cloud.md
 
 plugins:
   - search:
